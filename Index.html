@@ -309,23 +309,15 @@
             document.getElementById('login-type').value = type;
             const btnAdmin = document.getElementById('btn-tab-admin');
             const btnTech = document.getElementById('btn-tab-tech');
-            const labelUser = document.getElementById('label-user');
-            const inputUser = document.getElementById('login-user');
             const loginTitle = document.getElementById('login-title');
 
             if(type === 'admin') {
-                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-blue-700 bg-white shadow-sm rounded-lg transition-all";
-                btnTech.className = "flex-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
-                labelUser.innerText = "Username Admin";
-                inputUser.placeholder = "Masukkan username admin";
-                inputUser.type = "text";
+                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-slate-800 bg-white shadow-sm rounded-lg transition-all";
+                btnTech.className = "flex-1 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-lg transition-all";
                 loginTitle.innerText = "Login Administrator";
             } else {
-                btnTech.className = "flex-1 py-3 text-sm font-bold text-blue-700 bg-white shadow-sm rounded-lg transition-all";
-                btnAdmin.className = "flex-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
-                labelUser.innerText = "Username Teknisi";
-                inputUser.placeholder = "Masukkan username teknisi";
-                inputUser.type = "text";
+                btnTech.className = "flex-1 py-3 text-sm font-bold text-slate-800 bg-white shadow-sm rounded-lg transition-all";
+                btnAdmin.className = "flex-1 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-lg transition-all";
                 loginTitle.innerText = "Login Teknisi";
             }
         };
@@ -372,26 +364,19 @@
 
                             <form onsubmit="handleLogin(event)" class="space-y-5">
                                 <input type="hidden" id="login-type" value="admin">
-                                <div id="login-error" class="hidden bg-red-500/20 text-red-200 border border-red-500/30 p-3 rounded-lg text-sm font-bold text-center backdrop-blur-sm"></div>
+                                <div id="login-error" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold border border-red-200 text-center"></div>
                                 
-                                <div class="space-y-4">
-                                    <div class="relative group">
-                                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-white/50 group-focus-within:text-blue-400 transition-colors">
-                                            <i data-lucide="user" class="w-5 h-5"></i>
-                                        </div>
-                                        <input type="text" id="login-user" required placeholder="Username" class="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-blue-400 focus:bg-white/10 text-white font-medium transition-all placeholder:text-white/30 backdrop-blur-sm">
-                                    </div>
-
-                                    <div class="relative group">
-                                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-white/50 group-focus-within:text-orange-400 transition-colors">
+                                <div>
+                                    <label class="block text-sm font-bold text-white mb-1.5">Password Login</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                                             <i data-lucide="lock" class="w-5 h-5"></i>
                                         </div>
-                                        <input type="password" id="login-pass" required placeholder="Password" class="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-orange-400 focus:bg-white/10 text-white font-medium transition-all placeholder:text-white/30 backdrop-blur-sm">
+                                        <input type="password" id="login-pass" required placeholder="Masukkan kata sandi..." class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium transition-colors text-slate-800">
                                     </div>
                                 </div>
-
-                                <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white font-black py-4 rounded-xl transition-all shadow-lg hover:shadow-orange-500/25 mt-4 flex items-center justify-center gap-2 transform hover:-translate-y-0.5">
-                                    <span id="login-title">LOGIN</span> <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md mt-2 flex items-center justify-center gap-2">
+                                    <span id="login-title">Login Administrator</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
                                 </button>
                             </form>
                         </div>
@@ -403,29 +388,26 @@
         window.handleLogin = function(event) {
             event.preventDefault();
             const type = document.getElementById('login-type').value;
-            const u = document.getElementById('login-user').value.trim();
             const p = document.getElementById('login-pass').value.trim();
             const errorDiv = document.getElementById('login-error');
 
             if (type === 'admin') {
-                if (String(u).toLowerCase() === String(state.admin.user).toLowerCase() && String(p) === String(state.admin.pass)) {
+                if (String(p) === String(state.admin.pass)) {
                     currentUser = { id: 'admin', name: 'Administrator' };
                     userRole = 'admin';
                 } else {
-                    showLoginError("Username atau password admin salah!");
+                    showLoginError("Password admin salah!");
                     return;
                 }
             } else {
-                const tech = state.technicians.find(t => 
-                    String(t.username || '').toLowerCase() === u.toLowerCase() && 
-                    String(t.pass || '') === p
-                );
+                // Cari teknisi hanya berdasarkan kecocokan password saja
+                const tech = state.technicians.find(t => String(t.pass || '') === p);
                 
                 if (tech) {
                     currentUser = tech;
                     userRole = 'teknisi';
                 } else {
-                    showLoginError("Username teknisi atau password salah!");
+                    showLoginError("Password teknisi salah!");
                     return;
                 }
             }
@@ -454,6 +436,8 @@
             window.searchCustomer = "";
             window.searchPayment15 = "";
             window.searchPayment25 = "";
+            window.filterPay15 = "belum";
+            window.filterPay25 = "belum";
             renderApp();
         }
 
@@ -833,9 +817,9 @@
                     <tr class="hover:bg-slate-50/80 border-b border-slate-100 last:border-0 transition-colors">
                         <td class="p-4 align-top">
                             <div class="font-bold text-slate-800 text-sm md:text-base">${c.name} <span class="${c.status==='Non-Aktif'?'bg-red-100 text-red-600 px-2 py-0.5 rounded text-[10px] ml-1 font-black':'hidden'}">NON-AKTIF</span></div>
+                            <div class="text-xs text-slate-600 flex items-center gap-1 mt-1 font-medium"><i data-lucide="phone" class="w-3 h-3"></i> ${c.phone}</div>
+                            <div class="text-xs text-slate-500 flex items-start gap-1 mt-1 whitespace-normal leading-relaxed max-w-[250px]"><i data-lucide="map-pin" class="w-3 h-3 mt-0.5 flex-shrink-0"></i> ${c.address || '-'}</div>
                         </td>
-                        <td class="p-4 align-top text-xs md:text-sm text-slate-600 whitespace-normal min-w-[150px] leading-relaxed">${c.address || '-'}</td>
-                        <td class="p-4 align-top text-slate-700 font-medium text-sm">${c.phone}</td>
                         <td class="p-4 align-top">
                             <div class="text-slate-600 text-xs md:text-sm font-bold bg-slate-100 px-2 py-1 rounded w-max">${pkgDisplay}</div>
                             <div class="text-sm font-black text-blue-600 mt-1.5">${formatRp(tagihan)} ${c.customPrice ? '<span class="text-amber-600 text-[10px] uppercase ml-1">(Khusus)</span>' : ''}</div>
@@ -858,7 +842,7 @@
                 `;
             }).join('');
 
-            if(trs === '') trs = `<tr><td colspan="6" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="folder-search" class="w-10 h-10 text-slate-300"></i>Tidak ada data pelanggan.</div></td></tr>`;
+            if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="folder-search" class="w-10 h-10 text-slate-300"></i>Tidak ada data pelanggan.</div></td></tr>`;
 
             return `
                 <div class="space-y-4 md:space-y-6 max-w-7xl mx-auto">
@@ -899,15 +883,13 @@
 
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                         <div class="overflow-x-auto custom-scrollbar">
-                            <table class="w-full text-left text-sm whitespace-nowrap">
-                                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 whitespace-nowrap">
                                     <tr>
-                                        <th class="p-4">Nama Pelanggan</th>
-                                        <th class="p-4">Alamat Lengkap</th>
-                                        <th class="p-4">No. HP</th>
-                                        <th class="p-4">Paket & Tagihan</th>
-                                        <th class="p-4">Pembayaran Bulan Ini</th>
-                                        <th class="p-4">Aksi</th>
+                                        <th class="p-4">Profil Pelanggan</th>
+                                        <th class="p-4">Layanan & Tagihan</th>
+                                        <th class="p-4">Status Pembayaran</th>
+                                        <th class="p-4 w-24">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>${trs}</tbody>
@@ -1500,21 +1482,48 @@
             }, 10);
         }
 
+        window.handleFilterPayment = function(due, val) {
+            if (due === 15) window.filterPay15 = val;
+            if (due === 25) window.filterPay25 = val;
+            renderMenuContent();
+        }
+
         function getViewPayments(due) {
             const monthKey = window.selectedMonth;
             
             const dDate = new Date(monthKey + "-01");
             dDate.setMonth(dDate.getMonth() - 1);
+            const lastMonthKey = dDate.toISOString().slice(0, 7);
             
             let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
             
+            let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
             let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
+            
             if (searchValue) {
                 const q = String(searchValue).toLowerCase();
                 filteredCust = filteredCust.filter(c => 
                     String(c.name).toLowerCase().includes(q) || 
-                    String(c.phone).toLowerCase().includes(q)
+                    String(c.phone).toLowerCase().includes(q) ||
+                    String(c.address || '').toLowerCase().includes(q)
                 );
+            }
+
+            if (filterValue === 'lunas') {
+                filteredCust = filteredCust.filter(c => {
+                    const pay = state.payments.find(p => p.customerId === c.id && p.month === monthKey);
+                    return pay && pay.status === 'Lunas';
+                });
+            } else if (filterValue === 'nunggak') {
+                filteredCust = filteredCust.filter(c => {
+                    const pay = state.payments.find(p => p.customerId === c.id && p.month === monthKey);
+                    return pay && pay.status === 'Belum Bayar';
+                });
+            } else if (filterValue === 'belum') {
+                filteredCust = filteredCust.filter(c => {
+                    const pay = state.payments.find(p => p.customerId === c.id && p.month === monthKey);
+                    return !pay;
+                });
             }
 
             let trs = filteredCust.map(c => {
@@ -1559,11 +1568,22 @@
                         <p class="text-sm text-slate-500">Penagihan bulan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
                     </div>
 
-                    <div class="relative max-w-md w-full bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-                        <div class="absolute inset-y-0 left-2 pl-3 flex items-center pointer-events-none">
-                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="relative w-full md:max-w-md">
+                            <div class="absolute inset-y-0 left-2 pl-3 flex items-center pointer-events-none">
+                                <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                            </div>
+                            <input type="text" id="search-pay-${due}" value="${searchValue || ''}" oninput="handleSearchPayment(${due}, this.value)" placeholder="Cari nama, hp, atau alamat..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium text-sm transition-all">
                         </div>
-                        <input type="text" id="search-pay-${due}" value="${searchValue || ''}" oninput="handleSearchPayment(${due}, this.value)" placeholder="Cari nama pelanggan..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium text-sm transition-all">
+                        <div class="flex items-center gap-2 w-full md:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                            <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                            <select id="filter-pay-${due}" onchange="handleFilterPayment(${due}, this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
+                                <option value="belum" ${filterValue === 'belum' ? 'selected' : ''}>⏳ Belum Ditagih</option>
+                                <option value="lunas" ${filterValue === 'lunas' ? 'selected' : ''}>✅ Sudah Lunas</option>
+                                <option value="nunggak" ${filterValue === 'nunggak' ? 'selected' : ''}>❌ Nunggak (Belum Bayar)</option>
+                                <option value="semua" ${filterValue === 'semua' ? 'selected' : ''}>Tampilkan Semua</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
