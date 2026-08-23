@@ -6,6 +6,7 @@
     <title>BayarQue - Billing Internet</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         .slide-up { animation: slideUp 0.3s ease-out; }
@@ -50,9 +51,6 @@
         // =========================================================
         // KONFIGURASI DATABASE PERMANEN
         // =========================================================
-        // Masukkan URL Google Apps Script Anda di dalam tanda kutip di bawah ini.
-        // Contoh: const DATABASE_URL = "https://script.google.com/macros/s/AKfycb.../exec";
-        // Jika diisi, semua perangkat akan otomatis terhubung tanpa perlu setting manual!
         const DATABASE_URL = "https://script.google.com/macros/s/AKfycbyjdyvM5Fu_Nm55WW74zaYF2ckpSQmCGZVAUHwF-5JZNlIZtb7Fybp6Y27cDe12pxIK-w/exec"; 
 
         // Fungsi Notifikasi Cantik (Toast)
@@ -136,8 +134,6 @@
                     const result = await response.json();
                     if(result.status !== 'success' && result.error) console.warn("Peringatan server:", result.error);
                 } catch(e) {
-                    // Abaikan error parsing JSON. Beberapa browser HP memberikan response opaque (tertutup) saat berhadapan dengan Google Apps Script. 
-                    // Selama tidak ada error jaringan, data dipastikan sudah terkirim.
                     console.log("Response transport network aman.");
                 }
             } catch (error) {
@@ -161,7 +157,6 @@
         async function loadFromGoogleSheets(url) {
             showLoading("Mengunduh data dari Google Sheets...");
             try {
-                // Cegah sistem membaca cache (data usang) saat aplikasi direfresh
                 const cacheBuster = new Date().getTime();
                 const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'nocache=' + cacheBuster;
                 
@@ -182,7 +177,6 @@
                 if(data.payments) {
                     state.payments = data.payments.map(p => {
                         let parsedMonth = String(p.month).trim();
-                        // Perbaiki format jika Google Sheets otomatis mengonversinya menjadi Date (ISO String)
                         if (parsedMonth.includes('T')) {
                             const d = new Date(parsedMonth);
                             if (!isNaN(d.getTime())) {
@@ -287,12 +281,12 @@
         }
 
         window.formatInputRibuan = function(input) {
-            let val = String(input.value).replace(/\D/g, ''); // Hapus semua selain angka
+            let val = String(input.value).replace(/\D/g, ''); 
             if(val) input.value = Number(val).toLocaleString('id-ID');
             else input.value = '';
         }
 
-        // Fungsi Sinkronisasi Paksa (Refresh)
+        // Fungsi Sinkronisasi Paksa
         window.forceSync = async function() {
             const url = DATABASE_URL || localStorage.getItem('bayarque_script_url');
             if(!url) return showToast("Gagal", "URL Database belum diatur", "error");
@@ -338,45 +332,66 @@
 
         function getLoginHTML() {
             return `
-                <div class="min-h-screen w-full bg-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
-                    <div class="absolute inset-0 bg-blue-600/5 z-0"></div>
-                    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl z-10 overflow-hidden fade-in border border-slate-100">
-                        <div class="bg-blue-600 p-8 text-center relative overflow-hidden">
-                            <i data-lucide="wifi" class="w-24 h-24 text-white/10 absolute -right-4 -bottom-4"></i>
-                            <h1 class="text-3xl font-extrabold text-white tracking-tight relative z-10">BayarQue</h1>
-                            <p class="text-blue-200 mt-2 text-sm font-medium relative z-10">Manajemen Tagihan Internet Cerdas</p>
+                <div class="min-h-screen w-full bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+                    <div class="absolute inset-0 z-0 opacity-20">
+                        <div class="absolute w-[500px] h-[500px] bg-blue-600 rounded-full blur-[100px] -top-20 -left-20"></div>
+                        <div class="absolute w-[400px] h-[400px] bg-orange-600 rounded-full blur-[100px] -bottom-20 -right-20"></div>
+                        <svg class="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+                                    <circle cx="2" cy="2" r="1.5" fill="rgba(255,255,255,0.2)"></circle>
+                                    <path d="M2 2 L40 40 M40 2 L2 40" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+                                </pattern>
+                            </defs>
+                            <rect width="100%" height="100%" fill="url(#dots)"></rect>
+                        </svg>
+                    </div>
+
+                    <div class="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl z-10 overflow-hidden fade-in">
+                        <div class="p-8 text-center relative overflow-hidden border-b border-white/10">
+                            <!-- Logo Vektor 'B' -->
+                            <div class="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden group">
+                                <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white relative z-10">
+                                    <path d="M4 4V20H13.5C16.5376 20 19 17.5376 19 14.5C19 12.3023 17.7126 10.4063 15.8458 9.51886C17.1517 8.52097 18 6.86178 18 5C18 3.89543 17.1046 3 16 3H4ZM6 6H13.5C14.8807 6 16 7.11929 16 8.5C16 9.88071 14.8807 11 13.5 11H6V6ZM6 13H13.5C15.433 13 17 14.567 17 16.5C17 18.433 15.433 20 13.5 20H6V13Z" fill="currentColor"/>
+                                    <circle cx="16" cy="19" r="2" fill="white" class="animate-pulse"/>
+                                    <circle cx="20" cy="5" r="1.5" fill="white" opacity="0.8"/>
+                                    <path d="M16 19 L20 5" stroke="white" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.5"/>
+                                </svg>
+                            </div>
+                            
+                            <h1 class="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-orange-400 drop-shadow-sm">BayarQue</h1>
+                            <p class="text-blue-100 mt-2 text-sm font-medium tracking-wide opacity-80">Portal Billing Internet Pintar</p>
                         </div>
                         
-                        <div class="p-6">
-                            <div class="flex p-1 bg-slate-100 rounded-xl mb-6">
-                                <button type="button" id="btn-tab-admin" onclick="switchLoginTab('admin')" class="flex-1 py-3 text-sm font-bold text-blue-700 bg-white shadow-sm rounded-lg transition-all">Administrator</button>
-                                <button type="button" id="btn-tab-tech" onclick="switchLoginTab('teknisi')" class="flex-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">Teknisi</button>
+                        <div class="p-8">
+                            <div class="flex p-1.5 bg-white/10 rounded-xl mb-6 backdrop-blur-md border border-white/5">
+                                <button type="button" id="btn-tab-admin" onclick="switchLoginTab('admin')" class="flex-1 py-3 text-sm font-bold text-slate-800 bg-white shadow-sm rounded-lg transition-all">Admin</button>
+                                <button type="button" id="btn-tab-tech" onclick="switchLoginTab('teknisi')" class="flex-1 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-lg transition-all">Teknisi</button>
                             </div>
 
                             <form onsubmit="handleLogin(event)" class="space-y-5">
                                 <input type="hidden" id="login-type" value="admin">
-                                <div id="login-error" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold border border-red-200 text-center"></div>
+                                <div id="login-error" class="hidden bg-red-500/20 text-red-200 border border-red-500/30 p-3 rounded-lg text-sm font-bold text-center backdrop-blur-sm"></div>
                                 
-                                <div>
-                                    <label id="label-user" class="block text-sm font-bold text-slate-700 mb-1.5">Username Admin</label>
-                                    <div class="relative">
-                                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                <div class="space-y-4">
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-white/50 group-focus-within:text-blue-400 transition-colors">
                                             <i data-lucide="user" class="w-5 h-5"></i>
                                         </div>
-                                        <input type="text" id="login-user" required placeholder="Masukkan username admin" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium transition-colors">
+                                        <input type="text" id="login-user" required placeholder="Username" class="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-blue-400 focus:bg-white/10 text-white font-medium transition-all placeholder:text-white/30 backdrop-blur-sm">
                                     </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">Password</label>
-                                    <div class="relative">
-                                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-white/50 group-focus-within:text-orange-400 transition-colors">
                                             <i data-lucide="lock" class="w-5 h-5"></i>
                                         </div>
-                                        <input type="password" id="login-pass" required placeholder="Masukkan password" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium transition-colors">
+                                        <input type="password" id="login-pass" required placeholder="Password" class="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-orange-400 focus:bg-white/10 text-white font-medium transition-all placeholder:text-white/30 backdrop-blur-sm">
                                     </div>
                                 </div>
-                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md mt-2 flex items-center justify-center gap-2">
-                                    <span id="login-title">Login Administrator</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+
+                                <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white font-black py-4 rounded-xl transition-all shadow-lg hover:shadow-orange-500/25 mt-4 flex items-center justify-center gap-2 transform hover:-translate-y-0.5">
+                                    <span id="login-title">LOGIN</span> <i data-lucide="arrow-right" class="w-5 h-5"></i>
                                 </button>
                             </form>
                         </div>
@@ -394,14 +409,13 @@
 
             if (type === 'admin') {
                 if (String(u).toLowerCase() === String(state.admin.user).toLowerCase() && String(p) === String(state.admin.pass)) {
-                    currentUser = { name: 'Administrator' };
+                    currentUser = { id: 'admin', name: 'Administrator' };
                     userRole = 'admin';
                 } else {
                     showLoginError("Username atau password admin salah!");
                     return;
                 }
             } else {
-                // Cari teknisi berdasarkan username dan paksakan konversi ke string untuk keamanan baca tipe data (angka vs huruf)
                 const tech = state.technicians.find(t => 
                     String(t.username || '').toLowerCase() === u.toLowerCase() && 
                     String(t.pass || '') === p
@@ -478,7 +492,9 @@
             return `
                 <div class="${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${isDesktopSidebarOpen ? 'md:translate-x-0 md:relative md:flex' : 'md:-translate-x-full md:hidden'} fixed z-40 inset-y-0 left-0 w-64 bg-slate-900 text-white transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none">
                     <div class="p-5 flex items-center justify-between border-b border-slate-800">
-                        <h1 class="text-2xl font-extrabold text-blue-400 tracking-tight flex items-center gap-2"><i data-lucide="wifi" class="w-6 h-6"></i> BayarQue</h1>
+                        <h1 class="text-2xl font-extrabold tracking-tight flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-orange-400">
+                            <i data-lucide="wifi" class="w-6 h-6 text-orange-400"></i> BayarQue
+                        </h1>
                         <button onclick="toggleMobileMenu()" class="md:hidden text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-lg"><i data-lucide="x"></i></button>
                     </div>
                     <div class="px-5 py-4 text-xs font-semibold text-slate-400 border-b border-slate-800 bg-slate-900/50 flex flex-col gap-1.5">
@@ -540,7 +556,9 @@
                     <header class="bg-white shadow-sm border-b border-slate-200 p-4 flex justify-between items-center z-20 relative">
                         <div class="flex items-center gap-3">
                             <button onclick="toggleMobileMenu()" class="text-slate-600 bg-slate-100 p-2 rounded-lg hover:bg-slate-200 border border-slate-200 shadow-sm"><i data-lucide="menu"></i></button>
-                            <h1 class="text-xl font-extrabold text-blue-600 flex items-center gap-2 ${isDesktopSidebarOpen ? 'md:hidden' : ''}"><i data-lucide="wifi" class="w-5 h-5"></i> BayarQue</h1>
+                            <h1 class="text-xl font-extrabold flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-orange-500 ${isDesktopSidebarOpen ? 'md:hidden' : ''}">
+                                <i data-lucide="wifi" class="w-5 h-5 text-orange-500"></i> BayarQue
+                            </h1>
                         </div>
                         <div class="flex items-center gap-2">
                             <button onclick="forceSync()" class="text-emerald-600 bg-emerald-50 p-2 rounded-lg hover:bg-emerald-100 border border-emerald-200 shadow-sm" title="Sinkron Database"><i data-lucide="refresh-cw" class="w-5 h-5"></i></button>
@@ -572,7 +590,6 @@
         function getViewDashboard() {
             const monthKey = window.selectedMonth;
 
-            // Akses semua teknisi ke semua pelanggan (tidak dibatasi wilayah)
             let myCustomers = state.customers;
             let myPayments = state.payments;
             
@@ -607,52 +624,53 @@
                     </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-center">
+                        <div class="bg-blue-600 p-5 rounded-2xl shadow-sm flex flex-col justify-center text-white">
                             <div class="flex items-center gap-3 mb-2">
-                                <div class="p-2.5 rounded-lg bg-blue-50 text-blue-600"><i data-lucide="users" class="w-5 h-5"></i></div>
-                                <p class="text-sm font-medium text-slate-500">Semua Pelanggan Aktif</p>
+                                <div class="p-2.5 rounded-lg bg-blue-500 text-white"><i data-lucide="users" class="w-5 h-5"></i></div>
+                                <p class="text-sm font-medium text-blue-100">Semua Pelanggan Aktif</p>
                             </div>
-                            <p class="text-3xl font-extrabold text-slate-800 pl-1">${totalActive} <span class="text-xs font-semibold text-slate-400">Orang</span></p>
+                            <p class="text-3xl font-extrabold pl-1">${totalActive} <span class="text-xs font-semibold text-blue-200">Orang</span></p>
                         </div>
                         
-                        <div onclick="openModalDashboardDetail('lunas')" class="bg-emerald-50 cursor-pointer hover:bg-emerald-100 p-5 rounded-2xl shadow-sm border border-emerald-200 flex flex-col justify-center relative overflow-hidden transition-colors group">
-                            <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="check-circle" class="w-24 h-24 text-emerald-600"></i></div>
+                        <div onclick="openModalDashboardDetail('lunas')" class="bg-emerald-500 cursor-pointer hover:bg-emerald-600 p-5 rounded-2xl shadow-sm flex flex-col justify-center relative overflow-hidden transition-colors group text-white">
+                            <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="check-circle" class="w-24 h-24 text-white"></i></div>
                             <div class="flex items-center justify-between mb-2 relative z-10">
                                 <div class="flex items-center gap-3">
-                                    <div class="p-2.5 rounded-lg bg-white text-emerald-600 shadow-sm"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
-                                    <p class="text-sm font-bold text-emerald-800">Sudah Bayar</p>
+                                    <div class="p-2.5 rounded-lg bg-emerald-400 shadow-sm"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
+                                    <p class="text-sm font-bold text-emerald-50">Sudah Bayar</p>
                                 </div>
                                 <span class="text-[10px] font-bold bg-white text-emerald-600 px-2 py-1 rounded shadow-sm">Lihat ➔</span>
                             </div>
-                            <p class="text-3xl font-extrabold text-emerald-700 pl-1 relative z-10">${lunasCount} <span class="text-xs font-semibold text-emerald-600/70">Lunas Bln Ini</span></p>
+                            <p class="text-3xl font-extrabold pl-1 relative z-10">${lunasCount} <span class="text-xs font-semibold text-emerald-100">Lunas Bln Ini</span></p>
                         </div>
                         
-                        <div onclick="openModalDashboardDetail('nunggak')" class="bg-red-50 cursor-pointer hover:bg-red-100 p-5 rounded-2xl shadow-sm border border-red-200 flex flex-col justify-center relative overflow-hidden transition-colors group">
-                            <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="alert-circle" class="w-24 h-24 text-red-600"></i></div>
+                        <div onclick="openModalDashboardDetail('nunggak')" class="bg-red-500 cursor-pointer hover:bg-red-600 p-5 rounded-2xl shadow-sm flex flex-col justify-center relative overflow-hidden transition-colors group text-white">
+                            <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="alert-circle" class="w-24 h-24 text-white"></i></div>
                             <div class="flex items-center justify-between mb-2 relative z-10">
                                 <div class="flex items-center gap-3">
-                                    <div class="p-2.5 rounded-lg bg-white text-red-600 shadow-sm"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>
-                                    <p class="text-sm font-bold text-red-800">Belum Lunas</p>
+                                    <div class="p-2.5 rounded-lg bg-red-400 shadow-sm"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>
+                                    <p class="text-sm font-bold text-red-50">Belum Lunas</p>
                                 </div>
                                 <span class="text-[10px] font-bold bg-white text-red-600 px-2 py-1 rounded shadow-sm">Lihat ➔</span>
                             </div>
-                            <p class="text-3xl font-extrabold text-red-700 pl-1 relative z-10">${belumCount} <span class="text-xs font-semibold text-red-600/70">Nunggak Bln Ini</span></p>
+                            <p class="text-3xl font-extrabold pl-1 relative z-10">${belumCount} <span class="text-xs font-semibold text-red-100">Nunggak Bln Ini</span></p>
                         </div>
                         
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-purple-200 flex flex-col justify-center bg-gradient-to-br from-white to-purple-50/50">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="p-2.5 rounded-lg bg-purple-100 text-purple-700"><i data-lucide="wallet" class="w-5 h-5"></i></div>
-                                <p class="text-sm font-bold text-slate-700">Total Uang Masuk</p>
+                        <div class="bg-purple-600 p-5 rounded-2xl shadow-sm flex flex-col justify-center text-white relative overflow-hidden">
+                            <div class="absolute -right-4 -bottom-4 opacity-10"><i data-lucide="banknote" class="w-24 h-24 text-white"></i></div>
+                            <div class="flex items-center gap-3 mb-2 relative z-10">
+                                <div class="p-2.5 rounded-lg bg-purple-500 text-white"><i data-lucide="wallet" class="w-5 h-5"></i></div>
+                                <p class="text-sm font-bold text-purple-100">Total Uang Masuk</p>
                             </div>
-                            <p class="text-2xl font-extrabold text-purple-800 pl-1 truncate">${formatRp(revBulanIni)}</p>
-                            <p class="text-[11px] text-purple-600/80 font-bold pl-1 mt-1 bg-purple-100/50 w-max px-2 py-0.5 rounded">Target: ${formatRp(potensiBulanIni)}</p>
+                            <p class="text-2xl font-extrabold pl-1 truncate relative z-10">${formatRp(revBulanIni)}</p>
+                            <p class="text-[11px] text-purple-100 font-bold pl-1 mt-1 bg-purple-500/50 w-max px-2 py-0.5 rounded relative z-10">Target: ${formatRp(potensiBulanIni)}</p>
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        window.openModalDashboardDetail = function(type) {
+        window.openModalDashboardDetail = function(type, filterDue = 'all') {
             const monthKey = window.selectedMonth;
             let myCustomers = state.customers.filter(c => c.status === 'Aktif');
             let myPayments = state.payments;
@@ -662,11 +680,19 @@
             let textColor = type === 'lunas' ? 'text-emerald-800' : 'text-red-800';
             let icon = type === 'lunas' ? 'check-circle' : 'alert-circle';
 
-            let filtered = myCustomers.filter(c => {
+            let baseFiltered = myCustomers.filter(c => {
                 const pay = myPayments.find(p => p.customerId === c.id && p.month === monthKey);
                 if (type === 'lunas') return pay && pay.status === 'Lunas';
                 return !pay || pay.status !== 'Lunas';
             });
+
+            let count15 = baseFiltered.filter(c => String(c.dueDate) === '15').length;
+            let count25 = baseFiltered.filter(c => String(c.dueDate) === '25').length;
+
+            let filtered = baseFiltered;
+            if (filterDue !== 'all') {
+                filtered = baseFiltered.filter(c => String(c.dueDate) === String(filterDue));
+            }
 
             filtered.sort((a, b) => Number(a.dueDate) - Number(b.dueDate));
 
@@ -698,8 +724,16 @@
                             <h3 class="text-lg font-bold ${textColor} flex items-center gap-2"><i data-lucide="${icon}" class="w-5 h-5"></i> ${title}</h3>
                             <button onclick="closeModal()" class="text-slate-500 hover:text-slate-800 bg-white p-1.5 rounded-full shadow-sm"><i data-lucide="x" class="w-4 h-4"></i></button>
                         </div>
-                        <div class="p-2 bg-slate-50 border-b border-slate-100 text-center">
-                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total: ${filtered.length} Pelanggan</span>
+                        <div class="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                            <div class="flex gap-2">
+                                <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded shadow-sm">Tgl 15: ${count15} Org</span>
+                                <span class="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded shadow-sm">Tgl 25: ${count25} Org</span>
+                            </div>
+                            <select onchange="openModalDashboardDetail('${type}', this.value)" class="text-xs border border-slate-200 rounded-lg p-1.5 outline-none font-bold text-slate-700 bg-white cursor-pointer shadow-sm">
+                                <option value="all" ${filterDue === 'all' ? 'selected' : ''}>Semua Tanggal</option>
+                                <option value="15" ${filterDue === '15' ? 'selected' : ''}>Hanya Tgl 15</option>
+                                <option value="25" ${filterDue === '25' ? 'selected' : ''}>Hanya Tgl 25</option>
+                            </select>
                         </div>
                         <div class="overflow-y-auto p-4 bg-slate-50/50 custom-scrollbar">
                             ${listHTML}
@@ -927,7 +961,7 @@
             e.preventDefault();
             let cust = state.customers.find(c => c.id === id);
             let newPriceInput = document.getElementById('fc-custom-price').value;
-            let newPrice = newPriceInput.replace(/\D/g, ''); // Hapus format titik/ribuan sebelum disimpan
+            let newPrice = newPriceInput.replace(/\D/g, ''); 
             cust.customPrice = newPrice ? Number(newPrice) : '';
             
             closeModal();
@@ -948,7 +982,7 @@
                                 <i data-lucide="${id ? 'user-cog' : 'user-plus'}" class="w-6 h-6 text-blue-600"></i>
                                 ${id ? 'Edit Data Pelanggan' : 'Tambah Pelanggan Baru'}
                             </h3>
-                            <button onclick="closeModal()" class="text-slate-400 hover:text-red-500 bg-white p-2 rounded-xl shadow-sm border border-slate-200 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-800 bg-white p-2 rounded-xl shadow-sm border border-slate-200 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
                         </div>
                         
                         ${!id ? `
@@ -1003,9 +1037,12 @@
                                     </div>
                                 </div>
                                 
-                                <div class="pt-6 flex justify-end gap-3 border-t border-slate-100">
-                                    <button type="button" onclick="closeModal()" class="px-6 py-3 text-sm font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
-                                    <button type="submit" class="px-6 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md flex items-center gap-2 transition-colors"><i data-lucide="save" class="w-4 h-4"></i> Simpan Pelanggan</button>
+                                <div class="pt-6 flex items-center ${id ? 'justify-between' : 'justify-end'} gap-3 border-t border-slate-100">
+                                    ${id ? `<button type="button" onclick="confirmDeleteCustomer('${id}')" class="px-5 py-3 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors flex items-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Hapus</button>` : ''}
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="closeModal()" class="px-6 py-3 text-sm font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
+                                        <button type="submit" class="px-6 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md flex items-center gap-2 transition-colors"><i data-lucide="save" class="w-4 h-4"></i> Simpan Pelanggan</button>
+                                    </div>
                                 </div>
                             </form>
 
@@ -1073,6 +1110,38 @@
             `;
             document.getElementById('modal-root').innerHTML = html;
             lucide.createIcons();
+        }
+
+        window.confirmDeleteCustomer = function(id) {
+            let cust = state.customers.find(c => c.id === id);
+            const html = `
+                <div class="fixed inset-0 bg-slate-900/80 z-[60] flex justify-center items-center p-4 backdrop-blur-sm">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center fade-in">
+                        <div class="mx-auto w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4">
+                            <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2">Hapus Pelanggan?</h3>
+                        <p class="text-sm text-slate-500 mb-6">Anda yakin ingin menghapus data <strong class="text-slate-800">${cust.name}</strong>? Tindakan ini tidak dapat dibatalkan.</p>
+                        <div class="flex gap-3">
+                            <button onclick="openModalCustomer('${id}')" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">Batal</button>
+                            <button onclick="executeDeleteCustomer('${id}')" class="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-colors">Ya, Hapus</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-root').insertAdjacentHTML('beforeend', html);
+            lucide.createIcons();
+        }
+
+        window.executeDeleteCustomer = async function(id) {
+            state.customers = state.customers.filter(c => c.id !== id);
+            // Hapus juga riwayat pembayarannya agar database bersih
+            state.payments = state.payments.filter(p => p.customerId !== id);
+            
+            closeModal();
+            renderMenuContent();
+            showToast("Dihapus", "Data pelanggan berhasil dihapus.", "success");
+            await syncToDatabase("Menghapus Pelanggan...");
         }
 
         window.switchCustTab = function(tab) {
@@ -1436,7 +1505,6 @@
             
             const dDate = new Date(monthKey + "-01");
             dDate.setMonth(dDate.getMonth() - 1);
-            const lastMonthKey = dDate.toISOString().slice(0, 7);
             
             let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
             
@@ -1554,6 +1622,7 @@
                                         <select id="pay-method" class="w-full px-4 py-3 border border-emerald-200 rounded-xl outline-none focus:border-emerald-500 bg-white font-bold cursor-pointer shadow-sm">
                                             <option value="Cash" ${pay.method==='Cash'?'selected':''}>💵 Cash (Tunai)</option>
                                             <option value="Transfer" ${pay.method==='Transfer'?'selected':''}>💳 Transfer Bank</option>
+                                            <option value="Datang ke Kantor" ${pay.method==='Datang ke Kantor'?'selected':''}>🏢 Datang ke Kantor</option>
                                         </select>
                                     </div>
                                     <div>
@@ -1616,7 +1685,6 @@
             renderMenuContent();
             await syncToDatabase("Menyimpan Tagihan...");
             
-            // Notifikasi sukses cantik bergaya modern
             setTimeout(() => {
                 showToast("Pembayaran Sukses", "Data tagihan telah disimpan ke dalam database.", "success");
             }, 300);
@@ -1631,29 +1699,41 @@
                 reportData = state.technicians.map(t => {
                     const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id));
                     const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-                    return { name: t.name, revenue: rev, trxCount: techPayments.length };
+                    return { techId: t.id, name: t.name, revenue: rev, trxCount: techPayments.length };
                 });
+                
+                // Tambahkan rekap khusus untuk tagihan yang diproses oleh Admin (Pusat)
+                const adminPayments = allLunas.filter(p => p.technicianId === 'admin' || !p.technicianId);
+                if(adminPayments.length > 0) {
+                    const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+                    reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
+                }
             } else {
                 const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id));
                 const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-                reportData = [{ name: currentUser.name, revenue: rev, trxCount: techPayments.length }];
+                reportData = [{ techId: currentUser.id, name: currentUser.name, revenue: rev, trxCount: techPayments.length }];
             }
 
             let totalOmset = reportData.reduce((sum, r) => sum + r.revenue, 0);
 
             let cards = reportData.map(r => `
-                <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group flex flex-col justify-between">
                     <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><i data-lucide="receipt" class="w-32 h-32 text-blue-600"></i></div>
-                    <div class="flex items-center gap-4 mb-5 relative z-10">
-                        <div class="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-700 font-black text-xl border border-blue-200 shadow-sm">${r.name.charAt(0)}</div>
-                        <div>
-                            <p class="font-black text-slate-800 text-lg">${r.name}</p>
-                            <p class="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-md w-max mt-1.5 border border-slate-200 shadow-inner">${r.trxCount} Pembayaran Diterima</p>
+                    <div class="flex items-start gap-4 mb-5 relative z-10">
+                        <div class="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-700 font-black text-xl border border-blue-200 shadow-sm flex-shrink-0">${r.name.charAt(0)}</div>
+                        <div class="flex-1">
+                            <p class="font-black text-slate-800 text-lg leading-tight">${r.name}</p>
+                            <p class="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-md w-max mt-2 border border-slate-200 shadow-inner">${r.trxCount} Pembayaran Diterima</p>
                         </div>
                     </div>
-                    <div class="pt-5 border-t border-slate-100 relative z-10">
-                        <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Setoran Terkumpul</p>
-                        <p class="text-2xl font-black text-blue-700">${formatRp(r.revenue)}</p>
+                    <div class="pt-5 border-t border-slate-100 relative z-10 flex justify-between items-end gap-2">
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setoran Terkumpul</p>
+                            <p class="text-2xl font-black text-blue-700">${formatRp(r.revenue)}</p>
+                        </div>
+                        <button onclick="downloadLaporanPDF('${r.techId}', '${r.name}')" class="bg-slate-800 hover:bg-black text-white px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 text-sm font-bold" title="Download PDF Laporan">
+                            <i data-lucide="download" class="w-4 h-4"></i> PDF
+                        </button>
                     </div>
                 </div>
             `).join('');
@@ -1684,6 +1764,110 @@
                     </div>
                 </div>
             `;
+        }
+
+        window.downloadLaporanPDF = function(techId, techName) {
+            showLoading("Memproses File PDF...");
+            
+            const monthKey = window.selectedMonth;
+            const techPayments = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas' && String(p.technicianId) === String(techId));
+            
+            let rows = techPayments.map((p, i) => {
+                let cust = state.customers.find(c => c.id === p.customerId) || {};
+                const pkg = state.packages.find(pk => pk.id === cust.packageId);
+                let pkgName = pkg ? pkg.name : '-';
+                
+                let printDate = p.date;
+                if (printDate && String(printDate).includes('T')) {
+                    const dObj = new Date(printDate);
+                    if (!isNaN(dObj.getTime())) {
+                        printDate = dObj.toLocaleDateString('id-ID');
+                    }
+                }
+
+                return `
+                    <tr style="border-bottom: 1px solid #ddd; background-color: #fff;">
+                        <td style="padding: 12px 8px; text-align: center; border: 1px solid #ddd; color: #000;">${i+1}</td>
+                        <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;"><strong>${cust.name || 'Unknown'}</strong><br><span style="font-size:10px;color:#555;">${cust.phone || '-'}</span></td>
+                        <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${pkgName}</td>
+                        <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${printDate}</td>
+                        <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${p.method}</td>
+                        <td style="padding: 12px 8px; text-align: right; border: 1px solid #ddd; color: #000;"><strong>${formatRp(p.amount)}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+            
+            let total = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+            // Metode Murni Teks (String HTML). Mengabaikan CSS Layar Utama agar tidak terpotong (Blank).
+            const htmlContent = `
+                <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #000; width: 100%; box-sizing: border-box; background-color: #ffffff;">
+                    <div style="border-bottom: 3px solid #2563eb; padding-bottom: 15px; margin-bottom: 25px; text-align: center;">
+                        <h1 style="margin: 0; color: #2563eb; font-size: 26px; font-weight: 800; text-transform: uppercase;">Laporan Setoran Teknisi</h1>
+                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">Periode Penagihan: ${formatMonthName(monthKey)}</p>
+                    </div>
+                    
+                    <table style="width: 100%; margin-bottom: 25px; font-size: 14px; border: none; background-color: #ffffff;">
+                        <tr>
+                            <td style="width: 120px; font-weight: bold; color: #333;">Nama Teknisi</td>
+                            <td style="font-weight: bold; color: #000;">: ${techName}</td>
+                            <td style="text-align: right; color: #555;">Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}</td>
+                        </tr>
+                    </table>
+                    
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #ccc; background-color: #ffffff;">
+                        <thead style="background-color: #f1f5f9;">
+                            <tr style="text-align: left; color: #000;">
+                                <th style="padding: 14px 8px; text-align: center; border: 1px solid #ddd;">No</th>
+                                <th style="padding: 14px 8px; border: 1px solid #ddd;">Nama Pelanggan</th>
+                                <th style="padding: 14px 8px; border: 1px solid #ddd;">Paket Internet</th>
+                                <th style="padding: 14px 8px; border: 1px solid #ddd;">Tgl Bayar</th>
+                                <th style="padding: 14px 8px; border: 1px solid #ddd;">Metode</th>
+                                <th style="padding: 14px 8px; text-align: right; border: 1px solid #ddd;">Nominal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows || '<tr style="background-color: #fff;"><td colspan="6" style="padding: 20px; text-align: center; color: #666; border: 1px solid #ddd;">Belum ada data setoran untuk teknisi ini pada bulan terpilih.</td></tr>'}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background-color: #eff6ff; font-weight: bold;">
+                                <td colspan="5" style="padding: 15px 10px; text-align: right; color: #000; border: 1px solid #ddd;">TOTAL SETORAN (${techPayments.length} TRX) :</td>
+                                <td style="padding: 15px 10px; text-align: right; color: #000; border: 1px solid #ddd; font-size: 15px;">${formatRp(total)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    
+                    <div style="text-align: right; margin-top: 50px; font-size: 14px; color: #333; page-break-inside: avoid;">
+                        <div style="display: inline-block; text-align: center; width: 220px;">
+                            <p style="margin-bottom: 80px;">Diterima Oleh,</p>
+                            <p style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 5px;">Administrator / Keuangan</p>
+                            <p style="font-size: 11px; color: #666;">BayarQue System</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if(typeof html2pdf !== 'undefined') {
+                const opt = {
+                    margin:       0.3, 
+                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}_${monthKey}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true, logging: false },
+                    jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+                };
+
+                // Langsung proses dari teks (HTML String), dijamin tidak akan terpengaruh CSS halaman
+                html2pdf().set(opt).from(htmlContent).save().then(() => {
+                    hideLoading();
+                }).catch(err => {
+                    console.error("PDF Error:", err);
+                    hideLoading();
+                    showToast("Gagal", "Terjadi kesalahan saat memproses PDF.", "error");
+                });
+            } else {
+                hideLoading();
+                showToast("Sistem Error", "Library PDF belum dimuat. Periksa koneksi Anda.", "error");
+            }
         }
 
         function getViewSettings() {
@@ -1744,7 +1928,6 @@
             showToast("Berhasil Disimpan", "Pengaturan sistem berhasil diperbarui.", "success");
             
             if(url && url !== prevUrl) {
-                // Jika URL baru saja diisi/diubah, muat ulang aplikasi untuk menarik data Google Sheets
                 window.location.reload();
             } else {
                 await syncToDatabase("Menyimpan Pengaturan...");
