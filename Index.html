@@ -48,12 +48,8 @@
     <div id="modal-root"></div>
 
     <script>
-        // =========================================================
-        // KONFIGURASI DATABASE PERMANEN
-        // =========================================================
         const DATABASE_URL = "https://script.google.com/macros/s/AKfycbyjdyvM5Fu_Nm55WW74zaYF2ckpSQmCGZVAUHwF-5JZNlIZtb7Fybp6Y27cDe12pxIK-w/exec"; 
 
-        // Fungsi Notifikasi Cantik (Toast)
         window.showToast = function(title, message, type = 'success') {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -110,12 +106,8 @@
         let currentMenu = 'dashboard';
         let isMobileMenuOpen = false;
         let isDesktopSidebarOpen = true;
-
         window.selectedMonth = new Date().toISOString().slice(0, 7); 
-
-        // =========================================================
-        // KONEKSI GOOGLE SHEETS (APPS SCRIPT)
-        // =========================================================
+        window.reportFilterDue = 'all';
 
         async function syncToDatabase(loadingMessage = "Menyimpan ke Google Sheets...") {
             const url = DATABASE_URL || localStorage.getItem('bayarque_script_url');
@@ -129,13 +121,10 @@
                     redirect: 'follow',
                     body: JSON.stringify(state)
                 });
-                
                 try {
                     const result = await response.json();
                     if(result.status !== 'success' && result.error) console.warn("Peringatan server:", result.error);
-                } catch(e) {
-                    console.log("Response transport network aman.");
-                }
+                } catch(e) { console.log("Response aman."); }
             } catch (error) {
                 console.error("Gagal sinkron:", error);
                 const modalRoot = document.getElementById('modal-root');
@@ -144,7 +133,7 @@
                         <div class="bg-white rounded-xl p-6 max-w-sm w-full text-center fade-in">
                             <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mx-auto mb-3"></i>
                             <h3 class="font-bold text-lg text-slate-800">Gagal Menyimpan</h3>
-                            <p class="text-sm text-slate-500 mt-2">Tidak dapat terhubung ke Google Sheets. Periksa URL Web App di menu Pengaturan atau koneksi internet Anda.</p>
+                            <p class="text-sm text-slate-500 mt-2">Tidak dapat terhubung ke Google Sheets. Periksa koneksi internet Anda.</p>
                             <button onclick="closeModal()" class="mt-5 bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-lg font-bold transition-colors">Tutup</button>
                         </div>
                     </div>
@@ -159,48 +148,35 @@
             try {
                 const cacheBuster = new Date().getTime();
                 const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'nocache=' + cacheBuster;
-                
                 const response = await fetch(fetchUrl);
                 const data = await response.json();
                 
                 if(data.packages) state.packages = data.packages;
                 if(data.technicians) state.technicians = data.technicians;
-                
                 if(data.customers) {
                     state.customers = data.customers.map(c => ({
-                        ...c,
-                        id: String(c.id).trim(),
-                        packageId: String(c.packageId).trim()
+                        ...c, id: String(c.id).trim(), packageId: String(c.packageId).trim()
                     }));
                 }
-                
                 if(data.payments) {
                     state.payments = data.payments.map(p => {
                         let parsedMonth = String(p.month).trim();
                         if (parsedMonth.includes('T')) {
                             const d = new Date(parsedMonth);
-                            if (!isNaN(d.getTime())) {
-                                parsedMonth = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
-                            }
+                            if (!isNaN(d.getTime())) parsedMonth = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
                         }
                         return {
-                            ...p,
-                            customerId: String(p.customerId).trim(),
-                            month: parsedMonth,
-                            status: String(p.status).trim()
+                            ...p, customerId: String(p.customerId).trim(),
+                            month: parsedMonth, status: String(p.status).trim()
                         };
                     });
                 }
-                
                 if(data.admin && data.admin.user) state.admin = data.admin;
-                
                 checkSessionAndRender();
             } catch (error) {
                 console.error("Gagal mengambil data:", error);
                 checkSessionAndRender(true);
-                setTimeout(() => {
-                    showToast("Koneksi Gagal", "Pastikan URL Apps Script benar dan status aksesnya 'Anyone'.", "error");
-                }, 500);
+                setTimeout(() => { showToast("Koneksi Gagal", "Pastikan URL Apps Script benar.", "error"); }, 500);
             }
             hideLoading();
         }
@@ -211,9 +187,7 @@
                 await loadFromGoogleSheets(url);
             } else {
                 checkSessionAndRender(true);
-                setTimeout(() => {
-                    showToast("Belum Terhubung", "Buka menu Pengaturan dan masukkan URL Apps Script Anda.", "warning");
-                }, 1000);
+                setTimeout(() => { showToast("Belum Terhubung", "Buka menu Pengaturan dan masukkan URL Apps Script Anda.", "warning"); }, 1000);
             }
         };
 
@@ -234,7 +208,7 @@
                             <i data-lucide="alert-triangle" class="w-6 h-6 text-amber-600 flex-shrink-0"></i>
                             <div>
                                 <p class="font-bold">Mode Lokal Terdeteksi</p>
-                                <p class="text-sm">URL Google Sheets belum diatur atau koneksi terputus. Data saat ini belum tersinkronisasi.</p>
+                                <p class="text-sm">Koneksi terputus. Data saat ini belum tersinkronisasi.</p>
                             </div>
                         </div>
                     `);
@@ -275,18 +249,13 @@
             window.changeGlobalMonth(y + '-' + m);
         };
 
-        // Format Ribuan Otomatis
-        window.formatRibuan = function(angka) {
-            return Number(angka).toLocaleString('id-ID');
-        }
-
+        window.formatRibuan = function(angka) { return Number(angka).toLocaleString('id-ID'); }
         window.formatInputRibuan = function(input) {
             let val = String(input.value).replace(/\D/g, ''); 
             if(val) input.value = Number(val).toLocaleString('id-ID');
             else input.value = '';
         }
 
-        // Fungsi Sinkronisasi Paksa
         window.forceSync = async function() {
             const url = DATABASE_URL || localStorage.getItem('bayarque_script_url');
             if(!url) return showToast("Gagal", "URL Database belum diatur", "error");
@@ -389,7 +358,6 @@
             event.preventDefault();
             const type = document.getElementById('login-type').value;
             const p = document.getElementById('login-pass').value.trim();
-            const errorDiv = document.getElementById('login-error');
 
             if (type === 'admin') {
                 if (String(p) === String(state.admin.pass)) {
@@ -400,9 +368,7 @@
                     return;
                 }
             } else {
-                // Cari teknisi hanya berdasarkan kecocokan password saja
                 const tech = state.technicians.find(t => String(t.pass || '') === p);
-                
                 if (tech) {
                     currentUser = tech;
                     userRole = 'teknisi';
@@ -438,6 +404,7 @@
             window.searchPayment25 = "";
             window.filterPay15 = "belum";
             window.filterPay25 = "belum";
+            window.reportFilterDue = 'all'; // reset report filter
             renderApp();
         }
 
@@ -732,19 +699,21 @@
         window.filterCustomerPay = '';
         window.changeCustomerFilter = function() {
             window.filterCustomerPay = document.getElementById('cust-pay-filter').value;
-            window.renderCustomerTable();
+            renderMenuContent();
         };
 
         window.handleSearchCustomer = function(val) {
             window.searchCustomer = val;
-            window.renderCustomerTable();
+            renderMenuContent();
+            setTimeout(() => {
+                const el = document.getElementById('search-customer');
+                if(el) { el.focus(); el.setSelectionRange(val.length, val.length); }
+            }, 10);
         }
 
-        window.renderCustomerTable = function() {
-            const tbody = document.getElementById('customer-tbody');
-            if(!tbody) return;
-            
+        function getViewCustomers() {
             const monthKey = window.selectedMonth;
+
             const d = new Date(monthKey + "-01");
             const m0 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m1 = d.toISOString().slice(0, 7); 
@@ -811,6 +780,19 @@
                     }
                 }
 
+                // FITUR IZIN UBAH NOMINAL KHUSUS DITERAPKAN DI SINI
+                let canEditPrice = false;
+                if (userRole === 'admin') canEditPrice = true;
+                else if (userRole === 'teknisi' && currentUser.allowEditPrice) canEditPrice = true;
+
+                let editPriceBtn = canEditPrice 
+                    ? `<button onclick="openModalCustomPrice('${c.id}')" class="text-amber-600 bg-amber-50 hover:bg-amber-100 p-2.5 rounded-lg transition-colors border border-amber-200 flex items-center justify-center shadow-sm" title="Ubah Nominal Khusus">
+                            <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                       </button>`
+                    : `<button onclick="showToast('Akses Ditolak', 'Anda tidak diizinkan mengubah Nominal Khusus. Hubungi Admin.', 'error')" class="text-slate-400 bg-slate-100 p-2.5 rounded-lg border border-slate-200 flex items-center justify-center shadow-sm cursor-not-allowed" title="Terkunci">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                       </button>`;
+
                 return `
                     <tr class="hover:bg-slate-50/80 border-b border-slate-100 last:border-0 transition-colors">
                         <td class="p-4 align-top">
@@ -828,9 +810,7 @@
                         </td>
                         <td class="p-4 align-top">
                             <div class="flex gap-2">
-                                <button onclick="openModalCustomPrice('${c.id}')" class="text-amber-600 bg-amber-50 hover:bg-amber-100 p-2.5 rounded-lg transition-colors border border-amber-200 flex items-center justify-center shadow-sm" title="Ubah Nominal Khusus">
-                                    <i data-lucide="dollar-sign" class="w-4 h-4"></i>
-                                </button>
+                                ${editPriceBtn}
                                 <button onclick="openModalCustomer('${c.id}')" class="text-blue-600 bg-blue-50 hover:bg-blue-100 p-2.5 rounded-lg transition-colors border border-blue-200 flex items-center justify-center shadow-sm" title="Edit Data">
                                     <i data-lucide="edit-2" class="w-4 h-4"></i>
                                 </button>
@@ -841,15 +821,6 @@
             }).join('');
 
             if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="folder-search" class="w-10 h-10 text-slate-300"></i>Tidak ada data pelanggan.</div></td></tr>`;
-            
-            tbody.innerHTML = trs;
-            lucide.createIcons();
-        }
-
-        function getViewCustomers() {
-            const monthKey = window.selectedMonth;
-            
-            setTimeout(() => window.renderCustomerTable(), 50);
 
             return `
                 <div class="space-y-4 md:space-y-6 max-w-7xl mx-auto">
@@ -899,9 +870,7 @@
                                         <th class="p-4 w-24">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody id="customer-tbody">
-                                    <tr><td colspan="4" class="p-10 text-center text-slate-500"><i data-lucide="loader-2" class="animate-spin w-8 h-8 mx-auto text-blue-500"></i></td></tr>
-                                </tbody>
+                                <tbody>${trs}</tbody>
                             </table>
                         </div>
                     </div>
@@ -910,6 +879,11 @@
         }
 
         window.openModalCustomPrice = function(id) {
+            if (userRole !== 'admin' && (!currentUser || !currentUser.allowEditPrice)) {
+                showToast("Akses Ditolak", "Anda tidak memiliki izin mengubah nominal khusus. Hubungi Admin.", "error");
+                return;
+            }
+
             let cust = state.customers.find(c => c.id === id);
             let pkg = state.packages.find(p => p.id === cust.packageId);
             let defaultPrice = pkg ? pkg.price : 0;
@@ -1126,9 +1100,7 @@
 
         window.executeDeleteCustomer = async function(id) {
             state.customers = state.customers.filter(c => c.id !== id);
-            // Hapus juga riwayat pembayarannya agar database bersih
             state.payments = state.payments.filter(p => p.customerId !== id);
-            
             closeModal();
             renderMenuContent();
             showToast("Dihapus", "Data pelanggan berhasil dihapus.", "success");
@@ -1418,7 +1390,7 @@
         }
 
         window.openModalTechnician = function(id = null) {
-            let tech = id ? state.technicians.find(t => t.id === id) : { name: '', phone: '', username: '', pass: '' };
+            let tech = id ? state.technicians.find(t => t.id === id) : { name: '', phone: '', username: '', pass: '', allowEditPrice: false };
             const html = `
                 <div class="fixed inset-0 bg-slate-900/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
                     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden fade-in border border-slate-200 flex flex-col max-h-[90vh]">
@@ -1448,6 +1420,19 @@
                                     <label class="block text-sm font-bold text-slate-700 mb-1.5">Password <span class="text-red-500">*</span></label>
                                     <input id="tech-pass" required type="text" value="${tech.pass || ''}" placeholder="Cth: rahasia123" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
                                 </div>
+                                
+                                <div class="w-full h-px bg-slate-200 my-4"></div>
+                                <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Izin & Keamanan</h4>
+                                <div class="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+                                    <div>
+                                        <p class="font-bold text-sm text-slate-700">Ubah Nominal Khusus</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">Izinkan teknisi mengubah harga.</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="tech-allow-price" class="sr-only peer" ${tech.allowEditPrice ? 'checked' : ''}>
+                                        <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
 
                                 <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
                                     <button type="submit" class="w-full px-5 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md flex items-center justify-center gap-2 transition-colors"><i data-lucide="save" class="w-4 h-4"></i> Simpan Data</button>
@@ -1468,7 +1453,8 @@
                 name: document.getElementById('tech-name').value,
                 phone: document.getElementById('tech-phone').value,
                 username: document.getElementById('tech-user').value.trim(),
-                pass: document.getElementById('tech-pass').value
+                pass: document.getElementById('tech-pass').value,
+                allowEditPrice: document.getElementById('tech-allow-price').checked
             };
             if (id) {
                 const idx = state.technicians.findIndex(t => t.id === id);
@@ -1484,20 +1470,24 @@
         window.handleSearchPayment = function(due, val) {
             if (due === 15) window.searchPayment15 = val;
             if (due === 25) window.searchPayment25 = val;
-            window.renderPaymentTable(due);
+            renderMenuContent();
+            setTimeout(() => {
+                const el = document.getElementById(`search-pay-${due}`);
+                if(el) { el.focus(); el.setSelectionRange(val.length, val.length); }
+            }, 10);
         }
 
         window.handleFilterPayment = function(due, val) {
             if (due === 15) window.filterPay15 = val;
             if (due === 25) window.filterPay25 = val;
-            window.renderPaymentTable(due);
+            renderMenuContent();
         }
 
-        window.renderPaymentTable = function(due) {
-            const tbody = document.getElementById('payment-tbody-' + due);
-            if (!tbody) return;
-
+        function getViewPayments(due) {
             const monthKey = window.selectedMonth;
+            
+            const dDate = new Date(monthKey + "-01");
+            dDate.setMonth(dDate.getMonth() - 1);
             
             let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
             
@@ -1565,18 +1555,6 @@
 
             if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="check-square" class="w-10 h-10 text-slate-300"></i>Tidak ada data tagihan.</div></td></tr>`;
 
-            tbody.innerHTML = trs;
-            lucide.createIcons();
-        }
-
-        function getViewPayments(due) {
-            const monthKey = window.selectedMonth;
-            
-            let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
-            let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
-            
-            setTimeout(() => window.renderPaymentTable(due), 50);
-
             return `
                 <div class="space-y-6 max-w-6xl mx-auto">
                     <div class="flex flex-col gap-1">
@@ -1613,9 +1591,7 @@
                                         <th class="p-4 w-32">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody id="payment-tbody-${due}">
-                                    <tr><td colspan="4" class="p-10 text-center text-slate-500"><i data-lucide="loader-2" class="animate-spin w-8 h-8 mx-auto text-blue-500"></i></td></tr>
-                                </tbody>
+                                <tbody>${trs}</tbody>
                             </table>
                         </div>
                     </div>
@@ -1703,21 +1679,25 @@
         window.savePayment = async function(e, custId, amount) {
             e.preventDefault();
             const status = document.getElementById('pay-status').value;
-            const payMethod = status === 'Lunas' ? document.getElementById('pay-method').value : '';
-            
-            // Otomatis assign ID ke admin jika metode "Datang ke Kantor"
+            const method = status === 'Lunas' ? document.getElementById('pay-method').value : '';
+
+            // CEGAH DOBEL & KURANGI LAPORAN: Pertahankan ID jika pembayaran sudah ada
+            const existingPay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth);
+            const payId = existingPay ? existingPay.id : generateId();
+
+            // DATANG KE KANTOR -> PUSAT ADMIN: Atur ID teknisi menjadi admin
             let finalTechId = currentUser.id;
-            if (payMethod === 'Datang ke Kantor') {
+            if (status === 'Lunas' && method === 'Datang ke Kantor') {
                 finalTechId = 'admin';
             }
 
             const data = {
-                id: generateId(), 
+                id: payId, 
                 customerId: custId, 
                 month: window.selectedMonth, 
                 status: status,
                 amount: status === 'Lunas' ? amount : 0, 
-                method: payMethod,
+                method: method,
                 date: status === 'Lunas' ? document.getElementById('pay-date').value : '', 
                 reason: status === 'Belum Bayar' ? document.getElementById('pay-reason').value : '',
                 technicianId: finalTechId 
@@ -1736,9 +1716,8 @@
             }, 300);
         }
 
-        window.reportDueFilter = 'semua';
-        window.changeReportDueFilter = function(val) {
-            window.reportDueFilter = val;
+        window.changeReportFilter = function(val) {
+            window.reportFilterDue = val;
             renderMenuContent();
         }
 
@@ -1746,35 +1725,32 @@
             const monthKey = window.selectedMonth;
             let allLunas = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
             
-            if (window.reportDueFilter && window.reportDueFilter !== 'semua') {
+            // FILTER TANGGAL JATUH TEMPO
+            if (window.reportFilterDue && window.reportFilterDue !== 'all') {
                 allLunas = allLunas.filter(p => {
-                    const cust = state.customers.find(c => c.id === p.customerId);
-                    return cust && String(cust.dueDate) === String(window.reportDueFilter);
+                    let cust = state.customers.find(c => c.id === p.customerId);
+                    return cust && String(cust.dueDate) === String(window.reportFilterDue);
                 });
             }
             
-            // KOREKSI OTOMATIS: Pastikan data lama/baru dengan metode 'Datang ke Kantor' selalu menjadi milik Admin
-            allLunas = allLunas.map(p => {
-                if (p.method === 'Datang ke Kantor') {
-                    return { ...p, technicianId: 'admin' };
-                }
-                return p;
-            });
-
             let reportData = [];
             if (userRole === 'admin') {
                 reportData = state.technicians.map(t => {
-                    const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id));
+                    // Teknisi hanya dapat bagiannya yang BUKAN "Datang ke Kantor"
+                    const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id) && p.method !== 'Datang ke Kantor');
                     const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                     return { techId: t.id, name: t.name, revenue: rev, trxCount: techPayments.length };
                 });
                 
-                // Selalu tampilkan kartu Laporan Admin (Pusat) meskipun isinya 0
-                const adminPayments = allLunas.filter(p => p.technicianId === 'admin' || !p.technicianId);
-                const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-                reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
+                // Admin dapat yang diproses Admin ATAU semua yang metodenya "Datang ke Kantor"
+                const adminPayments = allLunas.filter(p => p.technicianId === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
+                if(adminPayments.length > 0 || true) {
+                    const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+                    reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
+                }
             } else {
-                const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id));
+                // Teknisi hanya dapat bagiannya yang BUKAN "Datang ke Kantor"
+                const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id) && p.method !== 'Datang ke Kantor');
                 const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                 reportData = [{ techId: currentUser.id, name: currentUser.name, revenue: rev, trxCount: techPayments.length }];
             }
@@ -1812,12 +1788,13 @@
                             <h2 class="text-2xl font-extrabold text-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-6 h-6 text-blue-600"></i> Laporan Keuangan</h2>
                             <p class="text-sm text-slate-500">Periode laporan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
                         </div>
-                        <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 w-full md:w-max shadow-sm">
+
+                        <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto">
                             <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
-                            <select onchange="changeReportDueFilter(this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
-                                <option value="semua" ${window.reportDueFilter === 'semua' ? 'selected' : ''}>Semua Tanggal Tagihan</option>
-                                <option value="15" ${window.reportDueFilter === '15' ? 'selected' : ''}>Hanya Tgl 15</option>
-                                <option value="25" ${window.reportDueFilter === '25' ? 'selected' : ''}>Hanya Tgl 25</option>
+                            <select onchange="changeReportFilter(this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
+                                <option value="all" ${window.reportFilterDue === 'all' ? 'selected' : ''}>Semua Tanggal Tagihan</option>
+                                <option value="15" ${window.reportFilterDue === '15' ? 'selected' : ''}>Hanya Tagihan Tgl 15</option>
+                                <option value="25" ${window.reportFilterDue === '25' ? 'selected' : ''}>Hanya Tagihan Tgl 25</option>
                             </select>
                         </div>
                     </div>
@@ -1845,22 +1822,26 @@
             showLoading("Memproses File PDF...");
             
             const monthKey = window.selectedMonth;
-            let techPayments = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
             
-            let labelDue = '';
-            if (window.reportDueFilter && window.reportDueFilter !== 'semua') {
+            // Terapkan Logika Tarik Data & Datang Ke Kantor
+            let techPayments = state.payments.filter(p => {
+                if (p.month !== monthKey || p.status !== 'Lunas') return false;
+                if (String(techId) === 'admin') {
+                    return String(p.technicianId) === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor';
+                } else {
+                    return String(p.technicianId) === String(techId) && p.method !== 'Datang ke Kantor';
+                }
+            });
+            
+            // Terapkan Logika Filter PDF
+            let titleFilter = "";
+            if (window.reportFilterDue && window.reportFilterDue !== 'all') {
                 techPayments = techPayments.filter(p => {
-                    const cust = state.customers.find(c => c.id === p.customerId);
-                    return cust && String(cust.dueDate) === String(window.reportDueFilter);
+                    let cust = state.customers.find(c => c.id === p.customerId);
+                    return cust && String(cust.dueDate) === String(window.reportFilterDue);
                 });
-                labelDue = `(Tagihan Tgl ${window.reportDueFilter})`;
+                titleFilter = " (Tgl " + window.reportFilterDue + ")";
             }
-
-            // KOREKSI OTOMATIS: Berlaku juga untuk PDF agar sesuai dengan Laporan Layar
-            techPayments = techPayments.map(p => {
-                if (p.method === 'Datang ke Kantor') return { ...p, technicianId: 'admin' };
-                return p;
-            }).filter(p => String(p.technicianId) === String(techId));
             
             let rows = techPayments.map((p, i) => {
                 let cust = state.customers.find(c => c.id === p.customerId) || {};
@@ -1889,12 +1870,11 @@
             
             let total = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-            // Metode Murni Teks (String HTML). Mengabaikan CSS Layar Utama agar tidak terpotong (Blank).
             const htmlContent = `
                 <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #000; width: 100%; box-sizing: border-box; background-color: #ffffff;">
                     <div style="border-bottom: 3px solid #2563eb; padding-bottom: 15px; margin-bottom: 25px; text-align: center;">
-                        <h1 style="margin: 0; color: #2563eb; font-size: 26px; font-weight: 800; text-transform: uppercase;">Laporan Setoran Teknisi</h1>
-                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">Periode Penagihan: ${formatMonthName(monthKey)} ${labelDue}</p>
+                        <h1 style="margin: 0; color: #2563eb; font-size: 26px; font-weight: 800; text-transform: uppercase;">Laporan Setoran Teknisi${titleFilter}</h1>
+                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">Periode Penagihan: ${formatMonthName(monthKey)}</p>
                     </div>
                     
                     <table style="width: 100%; margin-bottom: 25px; font-size: 14px; border: none; background-color: #ffffff;">
@@ -1938,10 +1918,9 @@
             `;
 
             if(typeof html2pdf !== 'undefined') {
-                const filenameDue = window.reportDueFilter && window.reportDueFilter !== 'semua' ? `_Tgl${window.reportDueFilter}` : '';
                 const opt = {
                     margin:       0.3, 
-                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}_${monthKey}${filenameDue}.pdf`,
+                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}_${monthKey}.pdf`,
                     image:        { type: 'jpeg', quality: 0.98 },
                     html2canvas:  { scale: 2, useCORS: true, logging: false },
                     jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
