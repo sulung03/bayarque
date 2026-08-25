@@ -732,21 +732,19 @@
         window.filterCustomerPay = '';
         window.changeCustomerFilter = function() {
             window.filterCustomerPay = document.getElementById('cust-pay-filter').value;
-            renderMenuContent();
+            window.renderCustomerTable();
         };
 
         window.handleSearchCustomer = function(val) {
             window.searchCustomer = val;
-            renderMenuContent();
-            setTimeout(() => {
-                const el = document.getElementById('search-customer');
-                if(el) { el.focus(); el.setSelectionRange(val.length, val.length); }
-            }, 10);
+            window.renderCustomerTable();
         }
 
-        function getViewCustomers() {
+        window.renderCustomerTable = function() {
+            const tbody = document.getElementById('customer-tbody');
+            if(!tbody) return;
+            
             const monthKey = window.selectedMonth;
-
             const d = new Date(monthKey + "-01");
             const m0 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m1 = d.toISOString().slice(0, 7); 
@@ -843,6 +841,15 @@
             }).join('');
 
             if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="folder-search" class="w-10 h-10 text-slate-300"></i>Tidak ada data pelanggan.</div></td></tr>`;
+            
+            tbody.innerHTML = trs;
+            lucide.createIcons();
+        }
+
+        function getViewCustomers() {
+            const monthKey = window.selectedMonth;
+            
+            setTimeout(() => window.renderCustomerTable(), 50);
 
             return `
                 <div class="space-y-4 md:space-y-6 max-w-7xl mx-auto">
@@ -892,7 +899,9 @@
                                         <th class="p-4 w-24">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody>${trs}</tbody>
+                                <tbody id="customer-tbody">
+                                    <tr><td colspan="4" class="p-10 text-center text-slate-500"><i data-lucide="loader-2" class="animate-spin w-8 h-8 mx-auto text-blue-500"></i></td></tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -1475,25 +1484,20 @@
         window.handleSearchPayment = function(due, val) {
             if (due === 15) window.searchPayment15 = val;
             if (due === 25) window.searchPayment25 = val;
-            renderMenuContent();
-            setTimeout(() => {
-                const el = document.getElementById(`search-pay-${due}`);
-                if(el) { el.focus(); el.setSelectionRange(val.length, val.length); }
-            }, 10);
+            window.renderPaymentTable(due);
         }
 
         window.handleFilterPayment = function(due, val) {
             if (due === 15) window.filterPay15 = val;
             if (due === 25) window.filterPay25 = val;
-            renderMenuContent();
+            window.renderPaymentTable(due);
         }
 
-        function getViewPayments(due) {
+        window.renderPaymentTable = function(due) {
+            const tbody = document.getElementById('payment-tbody-' + due);
+            if (!tbody) return;
+
             const monthKey = window.selectedMonth;
-            
-            const dDate = new Date(monthKey + "-01");
-            dDate.setMonth(dDate.getMonth() - 1);
-            const lastMonthKey = dDate.toISOString().slice(0, 7);
             
             let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
             
@@ -1561,6 +1565,18 @@
 
             if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="check-square" class="w-10 h-10 text-slate-300"></i>Tidak ada data tagihan.</div></td></tr>`;
 
+            tbody.innerHTML = trs;
+            lucide.createIcons();
+        }
+
+        function getViewPayments(due) {
+            const monthKey = window.selectedMonth;
+            
+            let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
+            let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
+            
+            setTimeout(() => window.renderPaymentTable(due), 50);
+
             return `
                 <div class="space-y-6 max-w-6xl mx-auto">
                     <div class="flex flex-col gap-1">
@@ -1597,7 +1613,9 @@
                                         <th class="p-4 w-32">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody>${trs}</tbody>
+                                <tbody id="payment-tbody-${due}">
+                                    <tr><td colspan="4" class="p-10 text-center text-slate-500"><i data-lucide="loader-2" class="animate-spin w-8 h-8 mx-auto text-blue-500"></i></td></tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -1685,16 +1703,24 @@
         window.savePayment = async function(e, custId, amount) {
             e.preventDefault();
             const status = document.getElementById('pay-status').value;
+            const payMethod = status === 'Lunas' ? document.getElementById('pay-method').value : '';
+            
+            // Otomatis assign ID ke admin jika metode "Datang ke Kantor"
+            let finalTechId = currentUser.id;
+            if (payMethod === 'Datang ke Kantor') {
+                finalTechId = 'admin';
+            }
+
             const data = {
                 id: generateId(), 
                 customerId: custId, 
                 month: window.selectedMonth, 
                 status: status,
                 amount: status === 'Lunas' ? amount : 0, 
-                method: status === 'Lunas' ? document.getElementById('pay-method').value : '',
+                method: payMethod,
                 date: status === 'Lunas' ? document.getElementById('pay-date').value : '', 
                 reason: status === 'Belum Bayar' ? document.getElementById('pay-reason').value : '',
-                technicianId: currentUser.id 
+                technicianId: finalTechId 
             };
             
             const idx = state.payments.findIndex(p => p.customerId === custId && p.month === window.selectedMonth);
@@ -1710,10 +1736,31 @@
             }, 300);
         }
 
+        window.reportDueFilter = 'semua';
+        window.changeReportDueFilter = function(val) {
+            window.reportDueFilter = val;
+            renderMenuContent();
+        }
+
         function getViewReports() {
             const monthKey = window.selectedMonth;
-            const allLunas = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
+            let allLunas = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
             
+            if (window.reportDueFilter && window.reportDueFilter !== 'semua') {
+                allLunas = allLunas.filter(p => {
+                    const cust = state.customers.find(c => c.id === p.customerId);
+                    return cust && String(cust.dueDate) === String(window.reportDueFilter);
+                });
+            }
+            
+            // KOREKSI OTOMATIS: Pastikan data lama/baru dengan metode 'Datang ke Kantor' selalu menjadi milik Admin
+            allLunas = allLunas.map(p => {
+                if (p.method === 'Datang ke Kantor') {
+                    return { ...p, technicianId: 'admin' };
+                }
+                return p;
+            });
+
             let reportData = [];
             if (userRole === 'admin') {
                 reportData = state.technicians.map(t => {
@@ -1722,12 +1769,10 @@
                     return { techId: t.id, name: t.name, revenue: rev, trxCount: techPayments.length };
                 });
                 
-                // Tambahkan rekap khusus untuk tagihan yang diproses oleh Admin (Pusat)
+                // Selalu tampilkan kartu Laporan Admin (Pusat) meskipun isinya 0
                 const adminPayments = allLunas.filter(p => p.technicianId === 'admin' || !p.technicianId);
-                if(adminPayments.length > 0) {
-                    const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-                    reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
-                }
+                const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+                reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
             } else {
                 const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id));
                 const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -1762,9 +1807,19 @@
 
             return `
                 <div class="space-y-6 max-w-5xl mx-auto">
-                    <div class="flex flex-col gap-1">
-                        <h2 class="text-2xl font-extrabold text-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-6 h-6 text-blue-600"></i> Laporan Keuangan</h2>
-                        <p class="text-sm text-slate-500">Periode laporan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex flex-col gap-1">
+                            <h2 class="text-2xl font-extrabold text-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-6 h-6 text-blue-600"></i> Laporan Keuangan</h2>
+                            <p class="text-sm text-slate-500">Periode laporan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
+                        </div>
+                        <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 w-full md:w-max shadow-sm">
+                            <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                            <select onchange="changeReportDueFilter(this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
+                                <option value="semua" ${window.reportDueFilter === 'semua' ? 'selected' : ''}>Semua Tanggal Tagihan</option>
+                                <option value="15" ${window.reportDueFilter === '15' ? 'selected' : ''}>Hanya Tgl 15</option>
+                                <option value="25" ${window.reportDueFilter === '25' ? 'selected' : ''}>Hanya Tgl 25</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1790,7 +1845,22 @@
             showLoading("Memproses File PDF...");
             
             const monthKey = window.selectedMonth;
-            const techPayments = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas' && String(p.technicianId) === String(techId));
+            let techPayments = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
+            
+            let labelDue = '';
+            if (window.reportDueFilter && window.reportDueFilter !== 'semua') {
+                techPayments = techPayments.filter(p => {
+                    const cust = state.customers.find(c => c.id === p.customerId);
+                    return cust && String(cust.dueDate) === String(window.reportDueFilter);
+                });
+                labelDue = `(Tagihan Tgl ${window.reportDueFilter})`;
+            }
+
+            // KOREKSI OTOMATIS: Berlaku juga untuk PDF agar sesuai dengan Laporan Layar
+            techPayments = techPayments.map(p => {
+                if (p.method === 'Datang ke Kantor') return { ...p, technicianId: 'admin' };
+                return p;
+            }).filter(p => String(p.technicianId) === String(techId));
             
             let rows = techPayments.map((p, i) => {
                 let cust = state.customers.find(c => c.id === p.customerId) || {};
@@ -1824,7 +1894,7 @@
                 <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #000; width: 100%; box-sizing: border-box; background-color: #ffffff;">
                     <div style="border-bottom: 3px solid #2563eb; padding-bottom: 15px; margin-bottom: 25px; text-align: center;">
                         <h1 style="margin: 0; color: #2563eb; font-size: 26px; font-weight: 800; text-transform: uppercase;">Laporan Setoran Teknisi</h1>
-                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">Periode Penagihan: ${formatMonthName(monthKey)}</p>
+                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">Periode Penagihan: ${formatMonthName(monthKey)} ${labelDue}</p>
                     </div>
                     
                     <table style="width: 100%; margin-bottom: 25px; font-size: 14px; border: none; background-color: #ffffff;">
@@ -1868,15 +1938,15 @@
             `;
 
             if(typeof html2pdf !== 'undefined') {
+                const filenameDue = window.reportDueFilter && window.reportDueFilter !== 'semua' ? `_Tgl${window.reportDueFilter}` : '';
                 const opt = {
                     margin:       0.3, 
-                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}_${monthKey}.pdf`,
+                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}_${monthKey}${filenameDue}.pdf`,
                     image:        { type: 'jpeg', quality: 0.98 },
                     html2canvas:  { scale: 2, useCORS: true, logging: false },
                     jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
                 };
 
-                // Langsung proses dari teks (HTML String), dijamin tidak akan terpengaruh CSS halaman
                 html2pdf().set(opt).from(htmlContent).save().then(() => {
                     hideLoading();
                 }).catch(err => {
