@@ -48,8 +48,12 @@
     <div id="modal-root"></div>
 
     <script>
+        // =========================================================
+        // KONFIGURASI DATABASE PERMANEN
+        // =========================================================
         const DATABASE_URL = "https://script.google.com/macros/s/AKfycbyjdyvM5Fu_Nm55WW74zaYF2ckpSQmCGZVAUHwF-5JZNlIZtb7Fybp6Y27cDe12pxIK-w/exec"; 
 
+        // Fungsi Notifikasi Cantik (Toast)
         window.showToast = function(title, message, type = 'success') {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -106,8 +110,13 @@
         let currentMenu = 'dashboard';
         let isMobileMenuOpen = false;
         let isDesktopSidebarOpen = true;
+
         window.selectedMonth = new Date().toISOString().slice(0, 7); 
         window.reportFilterDue = 'all';
+
+        // =========================================================
+        // KONEKSI GOOGLE SHEETS (APPS SCRIPT)
+        // =========================================================
 
         async function syncToDatabase(loadingMessage = "Menyimpan ke Google Sheets...") {
             const url = DATABASE_URL || localStorage.getItem('bayarque_script_url');
@@ -121,10 +130,13 @@
                     redirect: 'follow',
                     body: JSON.stringify(state)
                 });
+                
                 try {
                     const result = await response.json();
                     if(result.status !== 'success' && result.error) console.warn("Peringatan server:", result.error);
-                } catch(e) { console.log("Response aman."); }
+                } catch(e) {
+                    console.log("Response transport network aman.");
+                }
             } catch (error) {
                 console.error("Gagal sinkron:", error);
                 const modalRoot = document.getElementById('modal-root');
@@ -133,7 +145,7 @@
                         <div class="bg-white rounded-xl p-6 max-w-sm w-full text-center fade-in">
                             <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mx-auto mb-3"></i>
                             <h3 class="font-bold text-lg text-slate-800">Gagal Menyimpan</h3>
-                            <p class="text-sm text-slate-500 mt-2">Tidak dapat terhubung ke Google Sheets. Periksa koneksi internet Anda.</p>
+                            <p class="text-sm text-slate-500 mt-2">Tidak dapat terhubung ke Google Sheets. Periksa URL Web App di menu Pengaturan atau koneksi internet Anda.</p>
                             <button onclick="closeModal()" class="mt-5 bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-lg font-bold transition-colors">Tutup</button>
                         </div>
                     </div>
@@ -148,35 +160,48 @@
             try {
                 const cacheBuster = new Date().getTime();
                 const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'nocache=' + cacheBuster;
+                
                 const response = await fetch(fetchUrl);
                 const data = await response.json();
                 
                 if(data.packages) state.packages = data.packages;
                 if(data.technicians) state.technicians = data.technicians;
+                
                 if(data.customers) {
                     state.customers = data.customers.map(c => ({
-                        ...c, id: String(c.id).trim(), packageId: String(c.packageId).trim()
+                        ...c,
+                        id: String(c.id).trim(),
+                        packageId: String(c.packageId).trim()
                     }));
                 }
+                
                 if(data.payments) {
                     state.payments = data.payments.map(p => {
                         let parsedMonth = String(p.month).trim();
                         if (parsedMonth.includes('T')) {
                             const d = new Date(parsedMonth);
-                            if (!isNaN(d.getTime())) parsedMonth = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
+                            if (!isNaN(d.getTime())) {
+                                parsedMonth = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
+                            }
                         }
                         return {
-                            ...p, customerId: String(p.customerId).trim(),
-                            month: parsedMonth, status: String(p.status).trim()
+                            ...p,
+                            customerId: String(p.customerId).trim(),
+                            month: parsedMonth,
+                            status: String(p.status).trim()
                         };
                     });
                 }
+                
                 if(data.admin && data.admin.user) state.admin = data.admin;
+                
                 checkSessionAndRender();
             } catch (error) {
                 console.error("Gagal mengambil data:", error);
                 checkSessionAndRender(true);
-                setTimeout(() => { showToast("Koneksi Gagal", "Pastikan URL Apps Script benar.", "error"); }, 500);
+                setTimeout(() => {
+                    showToast("Koneksi Gagal", "Pastikan URL Apps Script benar dan status aksesnya 'Anyone'.", "error");
+                }, 500);
             }
             hideLoading();
         }
@@ -187,7 +212,9 @@
                 await loadFromGoogleSheets(url);
             } else {
                 checkSessionAndRender(true);
-                setTimeout(() => { showToast("Belum Terhubung", "Buka menu Pengaturan dan masukkan URL Apps Script Anda.", "warning"); }, 1000);
+                setTimeout(() => {
+                    showToast("Belum Terhubung", "Buka menu Pengaturan dan masukkan URL Apps Script Anda.", "warning");
+                }, 1000);
             }
         };
 
@@ -208,7 +235,7 @@
                             <i data-lucide="alert-triangle" class="w-6 h-6 text-amber-600 flex-shrink-0"></i>
                             <div>
                                 <p class="font-bold">Mode Lokal Terdeteksi</p>
-                                <p class="text-sm">Koneksi terputus. Data saat ini belum tersinkronisasi.</p>
+                                <p class="text-sm">URL Google Sheets belum diatur atau koneksi terputus. Data saat ini belum tersinkronisasi.</p>
                             </div>
                         </div>
                     `);
@@ -249,13 +276,18 @@
             window.changeGlobalMonth(y + '-' + m);
         };
 
-        window.formatRibuan = function(angka) { return Number(angka).toLocaleString('id-ID'); }
+        // Format Ribuan Otomatis
+        window.formatRibuan = function(angka) {
+            return Number(angka).toLocaleString('id-ID');
+        }
+
         window.formatInputRibuan = function(input) {
             let val = String(input.value).replace(/\D/g, ''); 
             if(val) input.value = Number(val).toLocaleString('id-ID');
             else input.value = '';
         }
 
+        // Fungsi Sinkronisasi Paksa
         window.forceSync = async function() {
             const url = DATABASE_URL || localStorage.getItem('bayarque_script_url');
             if(!url) return showToast("Gagal", "URL Database belum diatur", "error");
@@ -358,6 +390,7 @@
             event.preventDefault();
             const type = document.getElementById('login-type').value;
             const p = document.getElementById('login-pass').value.trim();
+            const errorDiv = document.getElementById('login-error');
 
             if (type === 'admin') {
                 if (String(p) === String(state.admin.pass)) {
@@ -404,7 +437,7 @@
             window.searchPayment25 = "";
             window.filterPay15 = "belum";
             window.filterPay25 = "belum";
-            window.reportFilterDue = 'all'; // reset report filter
+            window.reportFilterDue = 'all'; // Reset filter laporan
             renderApp();
         }
 
@@ -696,22 +729,23 @@
             lucide.createIcons();
         };
 
+        // ANTI KEDIP PENCARIAN PELANGGAN DI HP
         window.filterCustomerPay = '';
         window.changeCustomerFilter = function() {
             window.filterCustomerPay = document.getElementById('cust-pay-filter').value;
-            renderMenuContent();
+            const tbody = document.getElementById('cust-tbody');
+            if (tbody) { tbody.innerHTML = getCustomerRowsHTML(); lucide.createIcons(); }
+            else renderMenuContent();
         };
 
         window.handleSearchCustomer = function(val) {
             window.searchCustomer = val;
-            renderMenuContent();
-            setTimeout(() => {
-                const el = document.getElementById('search-customer');
-                if(el) { el.focus(); el.setSelectionRange(val.length, val.length); }
-            }, 10);
+            const tbody = document.getElementById('cust-tbody');
+            if (tbody) { tbody.innerHTML = getCustomerRowsHTML(); lucide.createIcons(); }
         }
 
-        function getViewCustomers() {
+        // FUNGSI PEMBUAT BARIS TABEL PELANGGAN
+        function getCustomerRowsHTML() {
             const monthKey = window.selectedMonth;
 
             const d = new Date(monthKey + "-01");
@@ -780,7 +814,7 @@
                     }
                 }
 
-                // FITUR IZIN UBAH NOMINAL KHUSUS DITERAPKAN DI SINI
+                // FITUR IZIN TEKNISI MENGUBAH HARGA
                 let canEditPrice = false;
                 if (userRole === 'admin') canEditPrice = true;
                 else if (userRole === 'teknisi' && currentUser.allowEditPrice) canEditPrice = true;
@@ -821,6 +855,13 @@
             }).join('');
 
             if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="folder-search" class="w-10 h-10 text-slate-300"></i>Tidak ada data pelanggan.</div></td></tr>`;
+
+            return trs;
+        }
+
+        function getViewCustomers() {
+            const monthKey = window.selectedMonth;
+            let trs = getCustomerRowsHTML();
 
             return `
                 <div class="space-y-4 md:space-y-6 max-w-7xl mx-auto">
@@ -870,7 +911,7 @@
                                         <th class="p-4 w-24">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody>${trs}</tbody>
+                                <tbody id="cust-tbody">${trs}</tbody>
                             </table>
                         </div>
                     </div>
@@ -879,7 +920,8 @@
         }
 
         window.openModalCustomPrice = function(id) {
-            if (userRole !== 'admin' && (!currentUser || !currentUser.allowEditPrice)) {
+            // VERIFIKASI KEAMANAN IZIN TEKNISI
+            if (userRole !== 'admin' && !currentUser.allowEditPrice) {
                 showToast("Akses Ditolak", "Anda tidak memiliki izin mengubah nominal khusus. Hubungi Admin.", "error");
                 return;
             }
@@ -1100,7 +1142,9 @@
 
         window.executeDeleteCustomer = async function(id) {
             state.customers = state.customers.filter(c => c.id !== id);
+            // Hapus juga riwayat pembayarannya agar database bersih
             state.payments = state.payments.filter(p => p.customerId !== id);
+            
             closeModal();
             renderMenuContent();
             showToast("Dihapus", "Data pelanggan berhasil dihapus.", "success");
@@ -1420,13 +1464,14 @@
                                     <label class="block text-sm font-bold text-slate-700 mb-1.5">Password <span class="text-red-500">*</span></label>
                                     <input id="tech-pass" required type="text" value="${tech.pass || ''}" placeholder="Cth: rahasia123" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
                                 </div>
-                                
+
+                                <!-- FITUR IZIN TEKNISI -->
                                 <div class="w-full h-px bg-slate-200 my-4"></div>
                                 <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Izin & Keamanan</h4>
                                 <div class="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
                                     <div>
                                         <p class="font-bold text-sm text-slate-700">Ubah Nominal Khusus</p>
-                                        <p class="text-xs text-slate-500 mt-0.5">Izinkan teknisi mengubah harga.</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">Izinkan teknisi mengubah harga khusus pelanggan.</p>
                                     </div>
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" id="tech-allow-price" class="sr-only peer" ${tech.allowEditPrice ? 'checked' : ''}>
@@ -1467,27 +1512,29 @@
             await syncToDatabase("Menyimpan Teknisi...");
         }
 
+        // ANTI KEDIP PENCARIAN TAGIHAN DI HP
         window.handleSearchPayment = function(due, val) {
             if (due === 15) window.searchPayment15 = val;
             if (due === 25) window.searchPayment25 = val;
-            renderMenuContent();
-            setTimeout(() => {
-                const el = document.getElementById(`search-pay-${due}`);
-                if(el) { el.focus(); el.setSelectionRange(val.length, val.length); }
-            }, 10);
+            const tbody = document.getElementById('pay-tbody-' + due);
+            if (tbody) { tbody.innerHTML = getPaymentRowsHTML(due); lucide.createIcons(); }
         }
 
         window.handleFilterPayment = function(due, val) {
             if (due === 15) window.filterPay15 = val;
             if (due === 25) window.filterPay25 = val;
-            renderMenuContent();
+            const tbody = document.getElementById('pay-tbody-' + due);
+            if (tbody) { tbody.innerHTML = getPaymentRowsHTML(due); lucide.createIcons(); }
+            else renderMenuContent();
         }
 
-        function getViewPayments(due) {
+        // FUNGSI PEMBUAT BARIS TABEL TAGIHAN
+        function getPaymentRowsHTML(due) {
             const monthKey = window.selectedMonth;
             
             const dDate = new Date(monthKey + "-01");
             dDate.setMonth(dDate.getMonth() - 1);
+            const lastMonthKey = dDate.toISOString().slice(0, 7);
             
             let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
             
@@ -1555,6 +1602,15 @@
 
             if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="check-square" class="w-10 h-10 text-slate-300"></i>Tidak ada data tagihan.</div></td></tr>`;
 
+            return trs;
+        }
+
+        function getViewPayments(due) {
+            const monthKey = window.selectedMonth;
+            let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
+            let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
+            let trs = getPaymentRowsHTML(due);
+
             return `
                 <div class="space-y-6 max-w-6xl mx-auto">
                     <div class="flex flex-col gap-1">
@@ -1591,7 +1647,7 @@
                                         <th class="p-4 w-32">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody>${trs}</tbody>
+                                <tbody id="pay-tbody-${due}">${trs}</tbody>
                             </table>
                         </div>
                     </div>
@@ -1681,15 +1737,15 @@
             const status = document.getElementById('pay-status').value;
             const method = status === 'Lunas' ? document.getElementById('pay-method').value : '';
 
-            // CEGAH DOBEL & KURANGI LAPORAN: Pertahankan ID jika pembayaran sudah ada
-            const existingPay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth);
-            const payId = existingPay ? existingPay.id : generateId();
-
-            // DATANG KE KANTOR -> PUSAT ADMIN: Atur ID teknisi menjadi admin
+            // DATANG KE KANTOR OTOMATIS MASUK LAPORAN ADMIN
             let finalTechId = currentUser.id;
             if (status === 'Lunas' && method === 'Datang ke Kantor') {
                 finalTechId = 'admin';
             }
+
+            // CEGAH DATA DOBEL/TUMPANG TINDIH & PASTIKAN LAPORAN BERKURANG JIKA DIEDIT
+            const existingPay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth);
+            const payId = existingPay ? existingPay.id : generateId();
 
             const data = {
                 id: payId, 
@@ -1732,25 +1788,23 @@
                     return cust && String(cust.dueDate) === String(window.reportFilterDue);
                 });
             }
-            
+
             let reportData = [];
             if (userRole === 'admin') {
                 reportData = state.technicians.map(t => {
-                    // Teknisi hanya dapat bagiannya yang BUKAN "Datang ke Kantor"
-                    const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id) && p.method !== 'Datang ke Kantor');
+                    const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id));
                     const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                     return { techId: t.id, name: t.name, revenue: rev, trxCount: techPayments.length };
                 });
                 
-                // Admin dapat yang diproses Admin ATAU semua yang metodenya "Datang ke Kantor"
+                // ADMINISTRATOR (Memasukkan "Datang ke Kantor" juga)
                 const adminPayments = allLunas.filter(p => p.technicianId === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
-                if(adminPayments.length > 0 || true) {
+                if(adminPayments.length > 0) {
                     const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                     reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
                 }
             } else {
-                // Teknisi hanya dapat bagiannya yang BUKAN "Datang ke Kantor"
-                const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id) && p.method !== 'Datang ke Kantor');
+                const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id));
                 const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                 reportData = [{ techId: currentUser.id, name: currentUser.name, revenue: rev, trxCount: techPayments.length }];
             }
@@ -1822,18 +1876,14 @@
             showLoading("Memproses File PDF...");
             
             const monthKey = window.selectedMonth;
+            let techPayments = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
+
+            if (String(techId) === 'admin') {
+                techPayments = techPayments.filter(p => String(p.technicianId) === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
+            } else {
+                techPayments = techPayments.filter(p => String(p.technicianId) === String(techId));
+            }
             
-            // Terapkan Logika Tarik Data & Datang Ke Kantor
-            let techPayments = state.payments.filter(p => {
-                if (p.month !== monthKey || p.status !== 'Lunas') return false;
-                if (String(techId) === 'admin') {
-                    return String(p.technicianId) === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor';
-                } else {
-                    return String(p.technicianId) === String(techId) && p.method !== 'Datang ke Kantor';
-                }
-            });
-            
-            // Terapkan Logika Filter PDF
             let titleFilter = "";
             if (window.reportFilterDue && window.reportFilterDue !== 'all') {
                 techPayments = techPayments.filter(p => {
@@ -1842,7 +1892,7 @@
                 });
                 titleFilter = " (Tgl " + window.reportFilterDue + ")";
             }
-            
+
             let rows = techPayments.map((p, i) => {
                 let cust = state.customers.find(c => c.id === p.customerId) || {};
                 const pkg = state.packages.find(pk => pk.id === cust.packageId);
@@ -1926,7 +1976,11 @@
                     jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
                 };
 
-                html2pdf().set(opt).from(htmlContent).save().then(() => {
+                // PENTING: Memproses string HTML menjadi DOM Element agar PDF tidak blank.
+                const tempElement = document.createElement('div');
+                tempElement.innerHTML = htmlContent;
+
+                html2pdf().set(opt).from(tempElement).save().then(() => {
                     hideLoading();
                 }).catch(err => {
                     console.error("PDF Error:", err);
