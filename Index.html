@@ -112,7 +112,6 @@
         let isDesktopSidebarOpen = true;
 
         window.selectedMonth = new Date().toISOString().slice(0, 7); 
-        window.reportFilterDue = 'all';
 
         // =========================================================
         // KONEKSI GOOGLE SHEETS (APPS SCRIPT)
@@ -402,6 +401,7 @@
                 }
             } else {
                 const tech = state.technicians.find(t => String(t.pass || '') === p);
+                
                 if (tech) {
                     currentUser = tech;
                     userRole = 'teknisi';
@@ -437,7 +437,9 @@
             window.searchPayment25 = "";
             window.filterPay15 = "belum";
             window.filterPay25 = "belum";
-            window.reportFilterDue = 'all'; // Reset filter laporan
+            window.filterTech15 = "all";
+            window.filterTech25 = "all";
+            window.reportFilterDue = 'all';
             renderApp();
         }
 
@@ -729,22 +731,25 @@
             lucide.createIcons();
         };
 
-        // ANTI KEDIP PENCARIAN PELANGGAN DI HP
         window.filterCustomerPay = '';
         window.changeCustomerFilter = function() {
             window.filterCustomerPay = document.getElementById('cust-pay-filter').value;
             const tbody = document.getElementById('cust-tbody');
-            if (tbody) { tbody.innerHTML = getCustomerRowsHTML(); lucide.createIcons(); }
-            else renderMenuContent();
+            if (tbody) { 
+                tbody.innerHTML = getCustomerRowsHTML(); 
+                lucide.createIcons(); 
+            }
         };
 
         window.handleSearchCustomer = function(val) {
             window.searchCustomer = val;
             const tbody = document.getElementById('cust-tbody');
-            if (tbody) { tbody.innerHTML = getCustomerRowsHTML(); lucide.createIcons(); }
+            if (tbody) { 
+                tbody.innerHTML = getCustomerRowsHTML(); 
+                lucide.createIcons(); 
+            }
         }
 
-        // FUNGSI PEMBUAT BARIS TABEL PELANGGAN
         function getCustomerRowsHTML() {
             const monthKey = window.selectedMonth;
 
@@ -814,7 +819,7 @@
                     }
                 }
 
-                // FITUR IZIN TEKNISI MENGUBAH HARGA
+                // FITUR IZIN TEKNISI
                 let canEditPrice = false;
                 if (userRole === 'admin') canEditPrice = true;
                 else if (userRole === 'teknisi' && currentUser.allowEditPrice) canEditPrice = true;
@@ -920,7 +925,6 @@
         }
 
         window.openModalCustomPrice = function(id) {
-            // VERIFIKASI KEAMANAN IZIN TEKNISI
             if (userRole !== 'admin' && !currentUser.allowEditPrice) {
                 showToast("Akses Ditolak", "Anda tidak memiliki izin mengubah nominal khusus. Hubungi Admin.", "error");
                 return;
@@ -1465,7 +1469,6 @@
                                     <input id="tech-pass" required type="text" value="${tech.pass || ''}" placeholder="Cth: rahasia123" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
                                 </div>
 
-                                <!-- FITUR IZIN TEKNISI -->
                                 <div class="w-full h-px bg-slate-200 my-4"></div>
                                 <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Izin & Keamanan</h4>
                                 <div class="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
@@ -1512,23 +1515,40 @@
             await syncToDatabase("Menyimpan Teknisi...");
         }
 
-        // ANTI KEDIP PENCARIAN TAGIHAN DI HP
         window.handleSearchPayment = function(due, val) {
             if (due === 15) window.searchPayment15 = val;
             if (due === 25) window.searchPayment25 = val;
             const tbody = document.getElementById('pay-tbody-' + due);
-            if (tbody) { tbody.innerHTML = getPaymentRowsHTML(due); lucide.createIcons(); }
+            if (tbody) { 
+                tbody.innerHTML = getPaymentRowsHTML(due); 
+                lucide.createIcons(); 
+            }
         }
 
         window.handleFilterPayment = function(due, val) {
             if (due === 15) window.filterPay15 = val;
             if (due === 25) window.filterPay25 = val;
             const tbody = document.getElementById('pay-tbody-' + due);
-            if (tbody) { tbody.innerHTML = getPaymentRowsHTML(due); lucide.createIcons(); }
-            else renderMenuContent();
+            if (tbody) { 
+                tbody.innerHTML = getPaymentRowsHTML(due); 
+                lucide.createIcons(); 
+            } else {
+                renderMenuContent();
+            }
+        }
+        
+        window.handleFilterTech = function(due, val) {
+            if (due === 15) window.filterTech15 = val;
+            if (due === 25) window.filterTech25 = val;
+            const tbody = document.getElementById('pay-tbody-' + due);
+            if (tbody) { 
+                tbody.innerHTML = getPaymentRowsHTML(due); 
+                lucide.createIcons(); 
+            } else {
+                renderMenuContent();
+            }
         }
 
-        // FUNGSI PEMBUAT BARIS TABEL TAGIHAN
         function getPaymentRowsHTML(due) {
             const monthKey = window.selectedMonth;
             
@@ -1540,6 +1560,7 @@
             
             let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
             let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
+            let filterTechValue = due === 15 ? (window.filterTech15 || 'all') : (window.filterTech25 || 'all');
             
             if (searchValue) {
                 const q = String(searchValue).toLowerCase();
@@ -1566,6 +1587,16 @@
                     return !pay;
                 });
             }
+            
+            if (filterTechValue !== 'all') {
+                filteredCust = filteredCust.filter(c => {
+                    const pay = state.payments.find(p => p.customerId === c.id && p.month === monthKey);
+                    if (filterTechValue === 'admin') {
+                        return pay && (String(pay.technicianId) === 'admin' || !pay.technicianId || pay.method === 'Datang ke Kantor');
+                    }
+                    return pay && String(pay.technicianId) === String(filterTechValue) && pay.method !== 'Datang ke Kantor';
+                });
+            }
 
             let trs = filteredCust.map(c => {
                 const pkg = state.packages.find(p => p.id === c.packageId);
@@ -1577,7 +1608,35 @@
                 
                 if(pay) {
                     if(pay.status === 'Lunas') {
-                        statusBadge = `<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold"><i data-lucide="check" class="w-3 h-3 inline"></i> Lunas via ${pay.method}</span>`;
+                        let procName = "Admin Pusat";
+                        let procColor = "bg-blue-50 text-blue-700 border-blue-200";
+                        let procIcon = "shield-check";
+                        
+                        if (pay.technicianId && pay.technicianId !== 'admin' && pay.method !== 'Datang ke Kantor') {
+                            const techIndex = state.technicians.findIndex(t => t.id === pay.technicianId);
+                            if (techIndex !== -1) {
+                                procName = state.technicians[techIndex].name;
+                                procIcon = "user";
+                                
+                                const colorList = [
+                                    "bg-purple-50 text-purple-700 border-purple-200",
+                                    "bg-amber-50 text-amber-700 border-amber-200",
+                                    "bg-pink-50 text-pink-700 border-pink-200",
+                                    "bg-teal-50 text-teal-700 border-teal-200",
+                                    "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                    "bg-orange-50 text-orange-700 border-orange-200",
+                                    "bg-rose-50 text-rose-700 border-rose-200",
+                                    "bg-cyan-50 text-cyan-700 border-cyan-200"
+                                ];
+                                procColor = colorList[techIndex % colorList.length];
+                            }
+                        }
+                        statusBadge = `
+                            <div class="flex flex-col gap-1.5 items-start">
+                                <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold"><i data-lucide="check" class="w-3 h-3 inline"></i> Lunas via ${pay.method}</span>
+                                <span class="px-2 py-0.5 ${procColor} border rounded-md text-[10px] font-bold flex items-center gap-1 shadow-sm"><i data-lucide="${procIcon}" class="w-3 h-3"></i> By: ${procName}</span>
+                            </div>
+                        `;
                     } else {
                         statusBadge = `<span class="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-full text-xs font-bold"><i data-lucide="x" class="w-3 h-3 inline"></i> ${pay.reason}</span>`;
                     }
@@ -1607,8 +1666,17 @@
 
         function getViewPayments(due) {
             const monthKey = window.selectedMonth;
+            
             let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
             let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
+            let filterTechValue = due === 15 ? (window.filterTech15 || 'all') : (window.filterTech25 || 'all');
+
+            let techOptions = `<option value="all" ${filterTechValue === 'all' ? 'selected' : ''}>🛠️ Semua Teknisi</option>`;
+            techOptions += `<option value="admin" ${filterTechValue === 'admin' ? 'selected' : ''}>🛡️ Admin Pusat</option>`;
+            state.technicians.forEach(t => {
+                techOptions += `<option value="${t.id}" ${filterTechValue === t.id ? 'selected' : ''}>👷 ${t.name}</option>`;
+            });
+
             let trs = getPaymentRowsHTML(due);
 
             return `
@@ -1618,21 +1686,33 @@
                         <p class="text-sm text-slate-500">Penagihan bulan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
                     </div>
 
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-                        <div class="relative w-full md:max-w-md">
+                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="relative w-full lg:max-w-md">
                             <div class="absolute inset-y-0 left-2 pl-3 flex items-center pointer-events-none">
                                 <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
                             </div>
                             <input type="text" id="search-pay-${due}" value="${searchValue || ''}" oninput="handleSearchPayment(${due}, this.value)" placeholder="Cari nama, hp, atau alamat..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium text-sm transition-all">
                         </div>
-                        <div class="flex items-center gap-2 w-full md:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                            <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
-                            <select id="filter-pay-${due}" onchange="handleFilterPayment(${due}, this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
-                                <option value="belum" ${filterValue === 'belum' ? 'selected' : ''}>⏳ Belum Ditagih</option>
-                                <option value="lunas" ${filterValue === 'lunas' ? 'selected' : ''}>✅ Sudah Lunas</option>
-                                <option value="nunggak" ${filterValue === 'nunggak' ? 'selected' : ''}>❌ Nunggak (Belum Bayar)</option>
-                                <option value="semua" ${filterValue === 'semua' ? 'selected' : ''}>Tampilkan Semua</option>
-                            </select>
+                        
+                        <div class="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto">
+                            <!-- FILTER TEKNISI BARU -->
+                            <div class="flex items-center gap-2 w-full sm:w-auto bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 shadow-sm">
+                                <div class="bg-indigo-100 p-1.5 rounded-lg text-indigo-600"><i data-lucide="users" class="w-4 h-4"></i></div>
+                                <select id="filter-tech-${due}" onchange="handleFilterTech(${due}, this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-indigo-800 cursor-pointer">
+                                    ${techOptions}
+                                </select>
+                            </div>
+
+                            <!-- FILTER STATUS LAMA -->
+                            <div class="flex items-center gap-2 w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                                <select id="filter-pay-${due}" onchange="handleFilterPayment(${due}, this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
+                                    <option value="belum" ${filterValue === 'belum' ? 'selected' : ''}>⏳ Belum Ditagih</option>
+                                    <option value="lunas" ${filterValue === 'lunas' ? 'selected' : ''}>✅ Sudah Lunas</option>
+                                    <option value="nunggak" ${filterValue === 'nunggak' ? 'selected' : ''}>❌ Nunggak (Belum Bayar)</option>
+                                    <option value="semua" ${filterValue === 'semua' ? 'selected' : ''}>Tampilkan Semua</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -1736,14 +1816,12 @@
             e.preventDefault();
             const status = document.getElementById('pay-status').value;
             const method = status === 'Lunas' ? document.getElementById('pay-method').value : '';
-
-            // DATANG KE KANTOR OTOMATIS MASUK LAPORAN ADMIN
+            
+            // DATANG KE KANTOR OTOMATIS KE ADMIN
             let finalTechId = currentUser.id;
-            if (status === 'Lunas' && method === 'Datang ke Kantor') {
-                finalTechId = 'admin';
-            }
+            if (status === 'Lunas' && method === 'Datang ke Kantor') finalTechId = 'admin';
 
-            // CEGAH DATA DOBEL/TUMPANG TINDIH & PASTIKAN LAPORAN BERKURANG JIKA DIEDIT
+            // FIX: Pertahankan ID jika sudah ada, agar database melakukan Update (bukan tambah baru yang menumpuk)
             const existingPay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth);
             const payId = existingPay ? existingPay.id : generateId();
 
@@ -1772,6 +1850,7 @@
             }, 300);
         }
 
+        window.reportFilterDue = 'all';
         window.changeReportFilter = function(val) {
             window.reportFilterDue = val;
             renderMenuContent();
@@ -1781,7 +1860,7 @@
             const monthKey = window.selectedMonth;
             let allLunas = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
             
-            // FILTER TANGGAL JATUH TEMPO
+            // FILTER LAPORAN BERDASARKAN TGL TAGIHAN
             if (window.reportFilterDue && window.reportFilterDue !== 'all') {
                 allLunas = allLunas.filter(p => {
                     let cust = state.customers.find(c => c.id === p.customerId);
@@ -1792,46 +1871,67 @@
             let reportData = [];
             if (userRole === 'admin') {
                 reportData = state.technicians.map(t => {
-                    const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id));
+                    // Hanya hitung jika technicianId cocok DAN metodenya bukan "Datang ke Kantor"
+                    const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id) && p.method !== 'Datang ke Kantor');
                     const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                     return { techId: t.id, name: t.name, revenue: rev, trxCount: techPayments.length };
                 });
                 
-                // ADMINISTRATOR (Memasukkan "Datang ke Kantor" juga)
-                const adminPayments = allLunas.filter(p => p.technicianId === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
+                // ADMINISTRATOR: Tarik paksa data lama yang belum terupdate ID-nya & Data baru (Datang ke Kantor)
+                const adminPayments = allLunas.filter(p => String(p.technicianId) === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
                 if(adminPayments.length > 0) {
                     const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                     reportData.unshift({ techId: 'admin', name: 'Administrator (Pusat)', revenue: adminRev, trxCount: adminPayments.length });
                 }
             } else {
-                const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id));
+                const techPayments = allLunas.filter(p => String(p.technicianId) === String(currentUser.id) && p.method !== 'Datang ke Kantor');
                 const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                 reportData = [{ techId: currentUser.id, name: currentUser.name, revenue: rev, trxCount: techPayments.length }];
             }
 
             let totalOmset = reportData.reduce((sum, r) => sum + r.revenue, 0);
 
-            let cards = reportData.map(r => `
-                <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group flex flex-col justify-between">
-                    <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><i data-lucide="receipt" class="w-32 h-32 text-blue-600"></i></div>
+            let cards = reportData.map((r, index) => {
+                let bgColor = "bg-slate-800 border-slate-900";
+                let btnClass = "bg-white text-slate-800 hover:bg-slate-100";
+                
+                if (r.techId === 'admin') {
+                    bgColor = "bg-blue-600 border-blue-700";
+                    btnClass = "bg-blue-800 text-white hover:bg-blue-900";
+                } else {
+                    const colors = [
+                        {bg: "bg-emerald-500 border-emerald-600", btn: "bg-emerald-700 hover:bg-emerald-800 text-white"},
+                        {bg: "bg-purple-500 border-purple-600", btn: "bg-purple-700 hover:bg-purple-800 text-white"},
+                        {bg: "bg-amber-500 border-amber-600", btn: "bg-amber-700 hover:bg-amber-800 text-white"},
+                        {bg: "bg-rose-500 border-rose-600", btn: "bg-rose-700 hover:bg-rose-800 text-white"},
+                        {bg: "bg-cyan-500 border-cyan-600", btn: "bg-cyan-700 hover:bg-cyan-800 text-white"}
+                    ];
+                    const c = colors[index % colors.length];
+                    bgColor = c.bg;
+                    btnClass = c.btn;
+                }
+
+                return `
+                <div class="${bgColor} p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group flex flex-col justify-between text-white">
+                    <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="receipt" class="w-32 h-32 text-white"></i></div>
                     <div class="flex items-start gap-4 mb-5 relative z-10">
-                        <div class="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-700 font-black text-xl border border-blue-200 shadow-sm flex-shrink-0">${r.name.charAt(0)}</div>
+                        <div class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center font-black text-xl border border-white/30 shadow-sm flex-shrink-0">${r.name.charAt(0)}</div>
                         <div class="flex-1">
-                            <p class="font-black text-slate-800 text-lg leading-tight">${r.name}</p>
-                            <p class="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-md w-max mt-2 border border-slate-200 shadow-inner">${r.trxCount} Pembayaran Diterima</p>
+                            <p class="font-black text-lg leading-tight">${r.name}</p>
+                            <p class="text-xs font-bold bg-black/20 px-2.5 py-1 rounded-md w-max mt-2 border border-black/10 shadow-inner">${r.trxCount} Pembayaran Diterima</p>
                         </div>
                     </div>
-                    <div class="pt-5 border-t border-slate-100 relative z-10 flex justify-between items-end gap-2">
+                    <div class="pt-5 border-t border-white/20 relative z-10 flex justify-between items-end gap-2">
                         <div>
-                            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setoran Terkumpul</p>
-                            <p class="text-2xl font-black text-blue-700">${formatRp(r.revenue)}</p>
+                            <p class="text-xs font-bold uppercase tracking-wider mb-1 text-white/80">Setoran Terkumpul</p>
+                            <p class="text-2xl font-black">${formatRp(r.revenue)}</p>
                         </div>
-                        <button onclick="downloadLaporanPDF('${r.techId}', '${r.name}')" class="bg-slate-800 hover:bg-black text-white px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 text-sm font-bold" title="Download PDF Laporan">
+                        <button onclick="downloadLaporanPDF('${r.techId}', '${r.name}')" class="${btnClass} px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 text-sm font-bold border border-black/10" title="Download PDF Laporan">
                             <i data-lucide="download" class="w-4 h-4"></i> PDF
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
 
             if(cards === '') cards = `<div class="col-span-full p-8 text-center text-slate-500 font-medium">Belum ada data laporan bulan ini.</div>`;
 
@@ -1843,6 +1943,7 @@
                             <p class="text-sm text-slate-500">Periode laporan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
                         </div>
 
+                        <!-- FILTER LAPORAN -->
                         <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto">
                             <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
                             <select onchange="changeReportFilter(this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
@@ -1881,7 +1982,7 @@
             if (String(techId) === 'admin') {
                 techPayments = techPayments.filter(p => String(p.technicianId) === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
             } else {
-                techPayments = techPayments.filter(p => String(p.technicianId) === String(techId));
+                techPayments = techPayments.filter(p => String(p.technicianId) === String(techId) && p.method !== 'Datang ke Kantor');
             }
             
             let titleFilter = "";
@@ -1890,7 +1991,7 @@
                     let cust = state.customers.find(c => c.id === p.customerId);
                     return cust && String(cust.dueDate) === String(window.reportFilterDue);
                 });
-                titleFilter = " (Tgl " + window.reportFilterDue + ")";
+                titleFilter = ` (Tgl ${window.reportFilterDue})`;
             }
 
             let rows = techPayments.map((p, i) => {
@@ -1920,6 +2021,7 @@
             
             let total = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
+            // Metode Teks diproses menjadi DOM. Dijamin Blank Putih / Mulus dan Tabel Muncul!
             const htmlContent = `
                 <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #000; width: 100%; box-sizing: border-box; background-color: #ffffff;">
                     <div style="border-bottom: 3px solid #2563eb; padding-bottom: 15px; margin-bottom: 25px; text-align: center;">
@@ -1970,13 +2072,13 @@
             if(typeof html2pdf !== 'undefined') {
                 const opt = {
                     margin:       0.3, 
-                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}_${monthKey}.pdf`,
+                    filename:     `Laporan_Setoran_${techName.replace(/\s+/g, '_')}${titleFilter.replace(/\s+/g, '_')}_${monthKey}.pdf`,
                     image:        { type: 'jpeg', quality: 0.98 },
                     html2canvas:  { scale: 2, useCORS: true, logging: false },
                     jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
                 };
 
-                // PENTING: Memproses string HTML menjadi DOM Element agar PDF tidak blank.
+                // PENTING: Dikonversi menjadi DOM Element sebelum dikirim
                 const tempElement = document.createElement('div');
                 tempElement.innerHTML = htmlContent;
 
