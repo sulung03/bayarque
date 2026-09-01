@@ -827,7 +827,7 @@
             const m0 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m1 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m2 = d.toISOString().slice(0, 7); 
-            const last3Months = [m0, m1, m2];
+            const last3Months = [m0, m1, m2].filter(m => m >= '2026-08');
 
             let filteredCust = state.customers;
 
@@ -1765,42 +1765,40 @@
                 }
 
                 let waBtnAction = '';
-                if(pay && pay.status === 'Lunas') {
-                    waBtnAction = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'lunas', ${tagihan}, '${formatMonthName(monthKey)}', '${formatTanggalBaca(pay.date)}')" class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 border border-emerald-200" title="Kirim Bukti Lunas ke WA"><i data-lucide="message-square" class="w-4 h-4"></i> Lunas</button>`;
-                } else {
-                    waBtnAction = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'tagihan', ${tagihan}, '${formatMonthName(monthKey)}', '')" class="text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 border border-amber-200" title="Kirim Tagihan ke WA"><i data-lucide="message-square" class="w-4 h-4"></i> Tagih</button>`;
-                }
+            if(pay && pay.status === 'Lunas') {
+                waBtnAction = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'lunas', ${tagihan}, '${formatMonthName(monthKey)}', '${formatTanggalBaca(pay.date)}')" class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 border border-emerald-200" title="Kirim Bukti Lunas ke WA"><i data-lucide="message-square" class="w-4 h-4"></i> Lunas</button>`;
+            } else {
+                waBtnAction = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'tagihan', ${tagihan}, '${formatMonthName(monthKey)}', '')" class="text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 border border-red-200" title="Kirim Tagihan ke WA"><i data-lucide="message-square" class="w-4 h-4"></i> Tagih</button>`;
+            }
 
-                const gmapsLinkPay = c.mapUrl ? c.mapUrl : (c.address && c.address !== '-' ? `https://maps.google.com/?q=${encodeURIComponent(c.address)}` : '');
-                const mapIconPay = gmapsLinkPay ? `<a href="${gmapsLinkPay}" target="_blank" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded border border-blue-100 flex-shrink-0 ml-1 inline-flex items-center justify-center" title="Arahkan Lokasi"><i data-lucide="map" class="w-3.5 h-3.5"></i></a>` : '';
+            const gmapsLinkPay = c.mapUrl ? c.mapUrl : (c.address && c.address !== '-' ? `https://maps.google.com/?q=${encodeURIComponent(c.address)}` : '');
+            const mapIconPay = gmapsLinkPay ? `<a href="${gmapsLinkPay}" target="_blank" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded border border-blue-100 flex-shrink-0 ml-1 inline-flex items-center justify-center" title="Arahkan Lokasi"><i data-lucide="map" class="w-3.5 h-3.5"></i></a>` : '';
 
-                return `
-                    <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                        <td class="p-4">
-                            <div class="font-bold text-slate-800 text-sm md:text-base">${c.name}</div>
-                            <div class="text-xs md:text-sm text-slate-500 mt-0.5 flex items-start gap-1"><i data-lucide="map-pin" class="w-3 h-3 mt-0.5 flex-shrink-0"></i> <span class="truncate max-w-[200px]">${c.address || '-'}</span> ${mapIconPay}</div>
-                            <div class="text-xs md:text-sm text-slate-500 mt-0.5 flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3"></i> ${c.phone}</div>
-                        </td>
-                        <td class="p-4 align-top">
-                            <div class="text-sm font-black text-blue-600 bg-blue-50 px-2 py-1 rounded w-max">${formatRp(tagihan)}</div>
-                        </td>
-                        <td class="p-4 align-top">${statusBadge}</td>
-                        <td class="p-4 align-top">
-                            <div class="flex flex-col xl:flex-row gap-2">
-                                <button onclick="openModalPayment('${c.id}')" class="text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"><i data-lucide="credit-card" class="w-4 h-4"></i> Proses</button>
-                                ${waBtnAction}
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+            return `
+                <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                    <td class="p-4 align-top">
+                        <div class="font-bold text-slate-800 text-sm md:text-base">${c.name}</div>
+                        <div class="text-xs md:text-sm text-slate-500 mt-0.5 flex items-start gap-1"><i data-lucide="map-pin" class="w-3 h-3 mt-0.5 flex-shrink-0"></i> <span class="truncate max-w-[200px] whitespace-normal">${c.address || '-'}</span> ${mapIconPay}</div>
+                        
+                        <div class="flex flex-wrap gap-2 mt-3">
+                            <button onclick="openModalPayment('${c.id}')" class="text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"><i data-lucide="credit-card" class="w-4 h-4"></i> Proses Bayar</button>
+                            ${waBtnAction}
+                        </div>
+                    </td>
+                    <td class="p-4 align-top">
+                        <div class="text-sm font-black text-blue-600 bg-blue-50 px-2 py-1 rounded w-max">${formatRp(tagihan)}</div>
+                    </td>
+                    <td class="p-4 align-top">${statusBadge}</td>
+                </tr>
+            `;
+        }).join('');
 
-            if(trs === '') trs = `<tr><td colspan="4" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="check-square" class="w-10 h-10 text-slate-300"></i>Tidak ada data tagihan.</div></td></tr>`;
+        if(trs === '') trs = `<tr><td colspan="3" class="p-10 text-center text-slate-500 font-medium"><div class="flex flex-col items-center gap-2"><i data-lucide="check-square" class="w-10 h-10 text-slate-300"></i>Tidak ada data tagihan.</div></td></tr>`;
 
-            return trs;
-        }
+        return trs;
+    }
 
-        function getViewPayments(due) {
+    function getViewPayments(due) {
             const monthKey = window.selectedMonth;
             
             let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
@@ -1857,10 +1855,9 @@
                             <table class="w-full text-left text-sm whitespace-nowrap">
                                 <thead class="bg-slate-100 text-slate-700 font-bold">
                                     <tr>
-                                        <th class="p-4">Pelanggan</th>
-                                        <th class="p-4">Nominal</th>
-                                        <th class="p-4">Status</th>
-                                        <th class="p-4 w-32">Aksi</th>
+                                        <th class="p-4">Informasi Pelanggan & Aksi</th>
+                                        <th class="p-4">Tagihan</th>
+                                        <th class="p-4">Status Pembayaran</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pay-tbody-${due}">${trs}</tbody>
@@ -1882,9 +1879,11 @@
             let dTemp = new Date(window.selectedMonth + "-01");
             for(let i=0; i<6; i++) { // Cek 6 bulan terakhir dari bulan terpilih
                 let mStr = dTemp.toISOString().slice(0, 7);
-                let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
-                if (!checkPay || checkPay.status !== 'Lunas') {
-                    unpaidMonths.push({ month: mStr, label: formatMonthName(mStr) });
+                if (mStr >= '2026-08') { // Batasi hanya menghitung mulai Agustus 2026
+                    let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
+                    if (!checkPay || checkPay.status !== 'Lunas') {
+                        unpaidMonths.push({ month: mStr, label: formatMonthName(mStr) });
+                    }
                 }
                 dTemp.setMonth(dTemp.getMonth() - 1);
             }
