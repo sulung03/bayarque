@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         .slide-up { animation: slideUp 0.3s ease-out; }
@@ -15,7 +16,8 @@
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         
-        input[type="month"]::-webkit-calendar-picker-indicator {
+        input[type="month"]::-webkit-calendar-picker-indicator,
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
             filter: invert(0.6);
             cursor: pointer;
         }
@@ -192,7 +194,9 @@
                     });
                 }
                 
-                if(data.admin && data.admin.user) state.admin = data.admin;
+                if(data.admin && data.admin.pass) {
+                    state.admin = data.admin;
+                }
                 
                 checkSessionAndRender();
             } catch (error) {
@@ -256,11 +260,29 @@
 
         function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
         function formatRp(angka) { return "Rp " + Number(angka).toLocaleString('id-ID'); }
+        
         function formatMonthName(yyyyMm) {
             if(!yyyyMm) return '';
             const [y, m] = yyyyMm.split('-');
             const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
             return `${months[parseInt(m)-1]} ${y}`;
+        }
+
+        window.formatTanggalBaca = function(isoString) {
+            if (!isoString) return '-';
+            const d = new Date(isoString);
+            if(isNaN(d.getTime())) return isoString; 
+            const pad = (n) => String(n).padStart(2, '0');
+            if (isoString.includes('T')) {
+                return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            }
+            return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+        }
+
+        function getNowLocal() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            return now.toISOString().slice(0, 16);
         }
 
         window.changeGlobalMonth = function(val) {
@@ -294,6 +316,26 @@
             showToast("Sinkronisasi Selesai", "Data terbaru berhasil ditarik dari database.", "success");
         }
 
+        // Fitur Integrasi WhatsApp Otomatis
+        window.kirimWA = function(phone, nama, type, tagihan, bulan, tglLunas) {
+            if(!phone || phone === '-') return showToast("Gagal", "Nomor HP pelanggan tidak valid/kosong.", "error");
+            
+            let hp = String(phone).replace(/\D/g, '');
+            if(hp.startsWith('0')) hp = '62' + hp.substring(1);
+            
+            let pesan = '';
+            if(type === 'tagihan') {
+                pesan = `Halo Bapak/Ibu *${nama}*,\n\nKami dari *BayarQue* ingin mengingatkan bahwa tagihan internet Anda untuk bulan *${bulan}* sebesar *${formatRp(tagihan)}* telah jatuh tempo.\n\nMohon untuk dapat segera melakukan pembayaran agar layanan internet tetap lancar.\n\nTerima kasih. 🙏`;
+            } else if(type === 'lunas') {
+                pesan = `Halo Bapak/Ibu *${nama}*,\n\nTerima kasih! Pembayaran internet Anda untuk bulan *${bulan}* sebesar *${formatRp(tagihan)}* telah kami terima pada ${tglLunas}.\n\nStatus layanan: *LUNAS* ✅\n\nTerima kasih telah berlangganan dan mempercayakan layanan internet Anda kepada kami. 🚀`;
+            } else if(type === 'umum') {
+                pesan = `Halo Bapak/Ibu *${nama}*,\n\n`;
+            }
+            
+            let url = `https://wa.me/${hp}?text=${encodeURIComponent(pesan)}`;
+            window.open(url, '_blank');
+        }
+
         function renderApp() {
             const app = document.getElementById('app');
             if (!currentUser) {
@@ -304,23 +346,6 @@
             }
             lucide.createIcons();
         }
-
-        window.switchLoginTab = function(type) {
-            document.getElementById('login-type').value = type;
-            const btnAdmin = document.getElementById('btn-tab-admin');
-            const btnTech = document.getElementById('btn-tab-tech');
-            const loginTitle = document.getElementById('login-title');
-
-            if(type === 'admin') {
-                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-slate-800 bg-white shadow-sm rounded-lg transition-all";
-                btnTech.className = "flex-1 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-lg transition-all";
-                loginTitle.innerText = "Login Administrator";
-            } else {
-                btnTech.className = "flex-1 py-3 text-sm font-bold text-slate-800 bg-white shadow-sm rounded-lg transition-all";
-                btnAdmin.className = "flex-1 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-lg transition-all";
-                loginTitle.innerText = "Login Teknisi";
-            }
-        };
 
         function getLoginHTML() {
             return `
@@ -339,9 +364,8 @@
                         </svg>
                     </div>
 
-                    <div class="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl z-10 overflow-hidden fade-in">
+                    <div class="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl z-10 overflow-hidden fade-in">
                         <div class="p-8 text-center relative overflow-hidden border-b border-white/10">
-                            <!-- Logo Vektor 'B' -->
                             <div class="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden group">
                                 <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white relative z-10">
@@ -357,26 +381,20 @@
                         </div>
                         
                         <div class="p-8">
-                            <div class="flex p-1.5 bg-white/10 rounded-xl mb-6 backdrop-blur-md border border-white/5">
-                                <button type="button" id="btn-tab-admin" onclick="switchLoginTab('admin')" class="flex-1 py-3 text-sm font-bold text-slate-800 bg-white shadow-sm rounded-lg transition-all">Admin</button>
-                                <button type="button" id="btn-tab-tech" onclick="switchLoginTab('teknisi')" class="flex-1 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-lg transition-all">Teknisi</button>
-                            </div>
-
                             <form onsubmit="handleLogin(event)" class="space-y-5">
-                                <input type="hidden" id="login-type" value="admin">
                                 <div id="login-error" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold border border-red-200 text-center"></div>
                                 
                                 <div>
-                                    <label class="block text-sm font-bold text-white mb-1.5">Password Login</label>
+                                    <label class="block text-sm font-bold text-white mb-2 text-center">Masukkan Kata Sandi Anda</label>
                                     <div class="relative">
                                         <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                                             <i data-lucide="lock" class="w-5 h-5"></i>
                                         </div>
-                                        <input type="password" id="login-pass" required placeholder="Masukkan kata sandi..." class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium transition-colors text-slate-800">
+                                        <input type="password" id="login-pass" required placeholder="Password Admin / Teknisi..." class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-bold transition-colors text-slate-800 text-center">
                                     </div>
                                 </div>
                                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md mt-2 flex items-center justify-center gap-2">
-                                    <span id="login-title">Login Administrator</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                                    <span>Login Sistem</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
                                 </button>
                             </form>
                         </div>
@@ -387,26 +405,21 @@
 
         window.handleLogin = function(event) {
             event.preventDefault();
-            const type = document.getElementById('login-type').value;
             const p = document.getElementById('login-pass').value.trim();
             const errorDiv = document.getElementById('login-error');
 
-            if (type === 'admin') {
-                if (String(p) === String(state.admin.pass)) {
-                    currentUser = { id: 'admin', name: 'Administrator' };
-                    userRole = 'admin';
-                } else {
-                    showLoginError("Password admin salah!");
-                    return;
-                }
+            if (String(p) === String(state.admin.pass)) {
+                currentUser = { id: 'admin', name: 'Administrator' };
+                userRole = 'admin';
             } else {
                 const tech = state.technicians.find(t => String(t.pass || '') === p);
-                
                 if (tech) {
                     currentUser = tech;
                     userRole = 'teknisi';
                 } else {
-                    showLoginError("Password teknisi salah!");
+                    errorDiv.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4 inline mb-0.5"></i> Password tidak ditemukan!`;
+                    errorDiv.classList.remove('hidden');
+                    lucide.createIcons();
                     return;
                 }
             }
@@ -414,13 +427,6 @@
             localStorage.setItem('bayarque_session', JSON.stringify({ user: currentUser, role: userRole }));
             currentMenu = 'dashboard';
             renderApp();
-        }
-
-        function showLoginError(msg) {
-            const errorDiv = document.getElementById('login-error');
-            errorDiv.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4 inline mb-0.5"></i> ${msg}`;
-            errorDiv.classList.remove('hidden');
-            lucide.createIcons();
         }
 
         window.handleLogout = function() {
@@ -483,11 +489,17 @@
                         </h1>
                         <button onclick="toggleMobileMenu()" class="md:hidden text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-lg"><i data-lucide="x"></i></button>
                     </div>
+                    
                     <div class="px-5 py-4 text-xs font-semibold text-slate-400 border-b border-slate-800 bg-slate-900/50 flex flex-col gap-1.5">
                         <span class="uppercase tracking-wider">Login Sebagai:</span>
-                        <span class="text-white text-sm font-bold flex items-center gap-2">
-                            <i data-lucide="user-check" class="w-4 h-4 text-emerald-400"></i> ${currentUser.name}
-                        </span>
+                        <div class="flex items-center justify-between">
+                            <span class="text-white text-sm font-bold flex items-center gap-2">
+                                <i data-lucide="user-check" class="w-4 h-4 text-emerald-400"></i> ${currentUser.name}
+                            </span>
+                            ${userRole === 'teknisi' ? `
+                                <button onclick="openModalUbahSandi()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 rounded" title="Ubah Password"><i data-lucide="key" class="w-3.5 h-3.5"></i></button>
+                            ` : ''}
+                        </div>
                         <span class="text-[10px] text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded w-max mt-0.5 border border-blue-400/20">${userRole.toUpperCase()}</span>
                     </div>
 
@@ -560,7 +572,7 @@
             main.className = "flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 fade-in custom-scrollbar";
             
             switch(currentMenu) {
-                case 'dashboard': main.innerHTML = getViewDashboard(); break;
+                case 'dashboard': main.innerHTML = getViewDashboard(); setTimeout(renderDashboardChart, 100); break;
                 case 'pelanggan': main.innerHTML = getViewCustomers(); break;
                 case 'paket': main.innerHTML = getViewPackages(); break;
                 case 'teknisi': main.innerHTML = getViewTechnicians(); break;
@@ -568,7 +580,7 @@
                 case 'pay25': main.innerHTML = getViewPayments(25); break;
                 case 'laporan': main.innerHTML = getViewReports(); break;
                 case 'pengaturan': main.innerHTML = getViewSettings(); break;
-                default: main.innerHTML = getViewDashboard();
+                default: main.innerHTML = getViewDashboard(); setTimeout(renderDashboardChart, 100);
             }
             lucide.createIcons();
         }
@@ -652,8 +664,66 @@
                             <p class="text-[11px] text-purple-100 font-bold pl-1 mt-1 bg-purple-500/50 w-max px-2 py-0.5 rounded relative z-10">Target: ${formatRp(potensiBulanIni)}</p>
                         </div>
                     </div>
+
+                    <!-- BAGIAN GRAFIK BATANG -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mt-6">
+                        <h3 class="font-bold text-slate-800 flex items-center gap-2 mb-4 border-b border-slate-100 pb-3"><i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-600"></i> Statistik Pendapatan (6 Bulan Terakhir)</h3>
+                        <div class="w-full h-64 md:h-80 relative">
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             `;
+        }
+
+        window.renderDashboardChart = function() {
+            const ctx = document.getElementById('revenueChart');
+            if(!ctx) return;
+            
+            let labels = [];
+            let dataRevenue = [];
+            let dDate = new Date(window.selectedMonth + "-01");
+            
+            for (let i = 5; i >= 0; i--) {
+                let tempD = new Date(dDate);
+                tempD.setMonth(tempD.getMonth() - i);
+                let mStr = tempD.toISOString().slice(0, 7);
+                
+                let rev = state.payments
+                    .filter(p => p.month === mStr && p.status === 'Lunas')
+                    .reduce((sum, p) => sum + Number(p.amount), 0);
+                    
+                labels.push(formatMonthName(mStr));
+                dataRevenue.push(rev);
+            }
+
+            // Hancurkan instance chart lama jika ada (mencegah bug tumpuk)
+            if (window.myChartInstance) window.myChartInstance.destroy();
+
+            window.myChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Pendapatan (Rp)',
+                        data: dataRevenue,
+                        backgroundColor: 'rgba(37, 99, 235, 0.85)',
+                        hoverBackgroundColor: 'rgba(37, 99, 235, 1)',
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(context) { return 'Rp ' + context.parsed.y.toLocaleString('id-ID'); } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: function(value) { return 'Rp ' + value.toLocaleString('id-ID'); } } }
+                    }
+                }
+            });
         }
 
         window.openModalDashboardDetail = function(type, filterDue = 'all') {
@@ -803,21 +873,19 @@
                 let payBadge = `<span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">Belum Ditagih</span>`;
                 let payNote = `<div class="text-[11px] text-slate-400 mt-1.5 font-bold">Jatuh Tempo: Tgl ${c.dueDate}</div>`;
                 
-                let countTunggakan = 0;
-                last3Months.forEach(m => {
-                    const pastPay = state.payments.find(p => p.customerId === c.id && p.month === m);
-                    if (!pastPay || pastPay.status !== 'Lunas') countTunggakan++;
-                });
-
                 if(pay) {
                     if(pay.status === 'Lunas') {
                         payBadge = `<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold"><i data-lucide="check" class="w-3 h-3 inline"></i> Lunas</span>`;
-                        payNote = `<div class="text-[11px] text-emerald-600 mt-1.5 font-bold">Via ${pay.method} (${pay.date})</div>`;
+                        payNote = `<div class="text-[11px] text-emerald-600 mt-1.5 font-bold">Via ${pay.method} (${formatTanggalBaca(pay.date)})</div>`;
                     } else {
                         payBadge = `<span class="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-full text-xs font-bold"><i data-lucide="x" class="w-3 h-3 inline"></i> Belum Bayar</span>`;
                         payNote = `<div class="text-[11px] text-red-500 mt-1.5 font-bold truncate max-w-[150px]" title="${pay.reason}">Ket: ${pay.reason || '-'}</div>`;
                     }
                 }
+
+                // Map link logic
+                const gmapsLink = c.mapUrl ? c.mapUrl : (c.address && c.address !== '-' ? `https://maps.google.com/?q=${encodeURIComponent(c.address)}` : '');
+                const mapIcon = gmapsLink ? `<a href="${gmapsLink}" target="_blank" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded border border-blue-100 flex-shrink-0 ml-1" title="Arahkan Lokasi"><i data-lucide="map" class="w-3.5 h-3.5"></i></a>` : '';
 
                 // FITUR IZIN TEKNISI
                 let canEditPrice = false;
@@ -832,12 +900,14 @@
                             <i data-lucide="lock" class="w-4 h-4"></i>
                        </button>`;
 
+                const waBtnUmum = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'umum', 0, '', '')" class="text-emerald-500 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 p-1 rounded border border-emerald-200 flex-shrink-0 ml-1 transition-colors" title="Kirim Pesan Umum (WA)"><i data-lucide="message-circle" class="w-3.5 h-3.5"></i></button>`;
+
                 return `
                     <tr class="hover:bg-slate-50/80 border-b border-slate-100 last:border-0 transition-colors">
                         <td class="p-4 align-top">
                             <div class="font-bold text-slate-800 text-sm md:text-base">${c.name} <span class="${c.status==='Non-Aktif'?'bg-red-100 text-red-600 px-2 py-0.5 rounded text-[10px] ml-1 font-black':'hidden'}">NON-AKTIF</span></div>
-                            <div class="text-xs text-slate-600 flex items-center gap-1 mt-1 font-medium"><i data-lucide="phone" class="w-3 h-3"></i> ${c.phone}</div>
-                            <div class="text-xs text-slate-500 flex items-start gap-1 mt-1 whitespace-normal leading-relaxed max-w-[250px]"><i data-lucide="map-pin" class="w-3 h-3 mt-0.5 flex-shrink-0"></i> ${c.address || '-'}</div>
+                            <div class="text-xs text-slate-600 flex items-center gap-1 mt-1 font-medium"><i data-lucide="phone" class="w-3 h-3"></i> ${c.phone} ${waBtnUmum}</div>
+                            <div class="text-xs text-slate-500 flex items-start gap-1 mt-1 whitespace-normal leading-relaxed max-w-[250px]"><i data-lucide="map-pin" class="w-3 h-3 mt-0.5 flex-shrink-0"></i> <span>${c.address || '-'}</span> ${mapIcon}</div>
                         </td>
                         <td class="p-4 align-top">
                             <div class="text-slate-600 text-xs md:text-sm font-bold bg-slate-100 px-2 py-1 rounded w-max">${pkgDisplay}</div>
@@ -981,7 +1051,7 @@
         }
 
         window.openModalCustomer = function(id = null) {
-            let cust = id ? state.customers.find(c => c.id === id) : { name:'', phone:'', address:'', packageId:'', dueDate:'15', status:'Aktif' };
+            let cust = id ? state.customers.find(c => c.id === id) : { name:'', phone:'', address:'', mapUrl:'', packageId:'', dueDate:'15', status:'Aktif' };
             
             let pkgOptions = state.packages.map(p => `<option value="${p.id}" ${p.id===cust.packageId?'selected':''}>${p.name} - ${formatRp(p.price)}</option>`).join('');
 
@@ -1018,6 +1088,11 @@
                                     <div class="md:col-span-2">
                                         <label class="block text-sm font-bold text-slate-700 mb-1.5">Alamat Lengkap</label>
                                         <textarea id="fc-address" rows="2" placeholder="Cth: Jl. Merdeka No. 10, RT 01/RW 02" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium transition-colors resize-none">${cust.address || ''}</textarea>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-bold text-slate-700 mb-1.5 flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4 text-red-500"></i> Titik Koordinat / Link Maps (Opsional)</label>
+                                        <input id="fc-mapurl" type="text" value="${cust.mapUrl || ''}" placeholder="Paste link dari Google Maps di sini..." class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white font-medium transition-colors">
+                                        <p class="text-[10px] text-slate-500 mt-1">Gunakan link akurat (cth: https://maps.app.goo.gl/xxx). Jika dikosongkan, sistem akan menebak otomatis berdasarkan teks Alamat Lengkap.</p>
                                     </div>
                                 </div>
 
@@ -1146,7 +1221,6 @@
 
         window.executeDeleteCustomer = async function(id) {
             state.customers = state.customers.filter(c => c.id !== id);
-            // Hapus juga riwayat pembayarannya agar database bersih
             state.payments = state.payments.filter(p => p.customerId !== id);
             
             closeModal();
@@ -1180,6 +1254,7 @@
                 name: document.getElementById('fc-name').value,
                 phone: document.getElementById('fc-phone').value,
                 address: document.getElementById('fc-address').value,
+                mapUrl: document.getElementById('fc-mapurl').value,
                 packageId: document.getElementById('fc-pkg').value,
                 dueDate: document.getElementById('fc-due').value,
                 status: document.getElementById('fc-status').value,
@@ -1289,6 +1364,7 @@
                         name: cols[idxName], 
                         address: (idxAddr !== -1 && cols[idxAddr]) ? cols[idxAddr] : '-', 
                         phone: (idxPhone !== -1 && cols[idxPhone]) ? cols[idxPhone] : '-',
+                        mapUrl: '',
                         packageId: pkgId, 
                         dueDate: due, 
                         status: status, 
@@ -1311,7 +1387,10 @@
                     <td class="p-4 font-bold text-slate-800">${p.name}</td>
                     <td class="p-4 font-extrabold text-blue-600 bg-blue-50/30 rounded-lg">${formatRp(p.price)}</td>
                     <td class="p-4">
-                        <button onclick="openModalPackage('${p.id}')" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-blue-200 flex items-center gap-2 shadow-sm"><i data-lucide="edit-2" class="w-4 h-4"></i> Edit</button>
+                        <div class="flex gap-2">
+                            <button onclick="openModalPackage('${p.id}')" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-blue-200 flex items-center gap-2 shadow-sm"><i data-lucide="edit-2" class="w-4 h-4"></i> Edit</button>
+                            <button onclick="deletePackage('${p.id}')" class="text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-red-200 flex items-center gap-2 shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Hapus</button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -1336,7 +1415,7 @@
                                 <tr>
                                     <th class="p-4">Nama Paket</th>
                                     <th class="p-4">Harga / Bulan</th>
-                                    <th class="p-4 w-24">Aksi</th>
+                                    <th class="p-4 w-48">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>${trs}</tbody>
@@ -1394,12 +1473,26 @@
             await syncToDatabase("Menyimpan Paket...");
         }
 
+        window.deletePackage = async function(id) {
+            const inUse = state.customers.some(c => c.packageId === id);
+            if (inUse) {
+                showToast("Ditolak", "Paket ini sedang digunakan oleh pelanggan dan tidak dapat dihapus.", "error");
+                return;
+            }
+            if(confirm("Apakah Anda yakin ingin menghapus paket ini?")) {
+                state.packages = state.packages.filter(p => p.id !== id);
+                renderMenuContent();
+                await syncToDatabase("Menghapus Paket...");
+                showToast("Dihapus", "Paket berhasil dihapus.", "success");
+            }
+        }
+
         function getViewTechnicians() {
             let trs = state.technicians.map(t => `
                 <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                     <td class="p-4 font-bold text-slate-800">${t.name}</td>
                     <td class="p-4 text-slate-600 font-medium">${t.phone}</td>
-                    <td class="p-4 text-slate-600 font-medium bg-slate-50/50 rounded-lg">@${t.username || '-'}</td>
+                    <td class="p-4 text-slate-600 font-medium bg-slate-50/50 rounded-lg">Tersembunyi</td>
                     <td class="p-4">
                         <button onclick="openModalTechnician('${t.id}')" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-blue-200 flex items-center gap-2 shadow-sm"><i data-lucide="edit-2" class="w-4 h-4"></i> Edit</button>
                     </td>
@@ -1425,7 +1518,7 @@
                                     <tr>
                                         <th class="p-4">Nama Teknisi</th>
                                         <th class="p-4">No. HP</th>
-                                        <th class="p-4">Username Login</th>
+                                        <th class="p-4">Akses Sandi</th>
                                         <th class="p-4 w-24">Aksi</th>
                                     </tr>
                                 </thead>
@@ -1438,7 +1531,7 @@
         }
 
         window.openModalTechnician = function(id = null) {
-            let tech = id ? state.technicians.find(t => t.id === id) : { name: '', phone: '', username: '', pass: '', allowEditPrice: false };
+            let tech = id ? state.technicians.find(t => t.id === id) : { name: '', phone: '', pass: '', allowEditPrice: false };
             const html = `
                 <div class="fixed inset-0 bg-slate-900/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
                     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden fade-in border border-slate-200 flex flex-col max-h-[90vh]">
@@ -1461,11 +1554,7 @@
                                 <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Akses Login Teknisi</h4>
                                 
                                 <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">Username <span class="text-red-500">*</span></label>
-                                    <input id="tech-user" required type="text" value="${tech.username || ''}" placeholder="Cth: andi123 (tanpa spasi)" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">Password <span class="text-red-500">*</span></label>
+                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">Password Login<span class="text-red-500">*</span></label>
                                     <input id="tech-pass" required type="text" value="${tech.pass || ''}" placeholder="Cth: rahasia123" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
                                 </div>
 
@@ -1500,7 +1589,6 @@
                 id: id || generateId(),
                 name: document.getElementById('tech-name').value,
                 phone: document.getElementById('tech-phone').value,
-                username: document.getElementById('tech-user').value.trim(),
                 pass: document.getElementById('tech-pass').value,
                 allowEditPrice: document.getElementById('tech-allow-price').checked
             };
@@ -1513,6 +1601,44 @@
             closeModal();
             renderMenuContent();
             await syncToDatabase("Menyimpan Teknisi...");
+        }
+
+        window.openModalUbahSandi = function() {
+            const html = `
+                <div class="fixed inset-0 bg-slate-900/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
+                    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden fade-in border border-slate-200">
+                        <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 class="text-lg font-bold text-slate-800">Ubah Password Anda</h3>
+                            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-800 bg-white p-1.5 rounded-full shadow-sm"><i data-lucide="x" class="w-4 h-4"></i></button>
+                        </div>
+                        <form onsubmit="saveUbahSandi(event)" class="p-6 space-y-4">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5">Password Baru</label>
+                                <input id="new-tech-pass" required type="text" placeholder="Masukkan sandi baru..." class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 font-bold bg-slate-50 focus:bg-white transition-colors">
+                            </div>
+                            <div class="pt-2">
+                                <button type="submit" class="w-full px-5 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md">Simpan Password</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-root').innerHTML = html;
+            lucide.createIcons();
+        }
+
+        window.saveUbahSandi = async function(e) {
+            e.preventDefault();
+            const newPass = document.getElementById('new-tech-pass').value;
+            const idx = state.technicians.findIndex(t => t.id === currentUser.id);
+            if (idx !== -1) {
+                state.technicians[idx].pass = newPass;
+                currentUser.pass = newPass;
+                localStorage.setItem('bayarque_session', JSON.stringify({ user: currentUser, role: userRole }));
+                closeModal();
+                await syncToDatabase("Memperbarui Password...");
+                showToast("Berhasil", "Password berhasil diubah.", "success");
+            }
         }
 
         window.handleSearchPayment = function(due, val) {
@@ -1551,10 +1677,6 @@
 
         function getPaymentRowsHTML(due) {
             const monthKey = window.selectedMonth;
-            
-            const dDate = new Date(monthKey + "-01");
-            dDate.setMonth(dDate.getMonth() - 1);
-            const lastMonthKey = dDate.toISOString().slice(0, 7);
             
             let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
             
@@ -1642,18 +1764,32 @@
                     }
                 }
 
+                let waBtnAction = '';
+                if(pay && pay.status === 'Lunas') {
+                    waBtnAction = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'lunas', ${tagihan}, '${formatMonthName(monthKey)}', '${formatTanggalBaca(pay.date)}')" class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 border border-emerald-200" title="Kirim Bukti Lunas ke WA"><i data-lucide="message-square" class="w-4 h-4"></i> Lunas</button>`;
+                } else {
+                    waBtnAction = `<button onclick="kirimWA('${c.phone}', '${c.name}', 'tagihan', ${tagihan}, '${formatMonthName(monthKey)}', '')" class="text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 border border-amber-200" title="Kirim Tagihan ke WA"><i data-lucide="message-square" class="w-4 h-4"></i> Tagih</button>`;
+                }
+
+                const gmapsLinkPay = c.mapUrl ? c.mapUrl : (c.address && c.address !== '-' ? `https://maps.google.com/?q=${encodeURIComponent(c.address)}` : '');
+                const mapIconPay = gmapsLinkPay ? `<a href="${gmapsLinkPay}" target="_blank" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded border border-blue-100 flex-shrink-0 ml-1 inline-flex items-center justify-center" title="Arahkan Lokasi"><i data-lucide="map" class="w-3.5 h-3.5"></i></a>` : '';
+
                 return `
                     <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                         <td class="p-4">
                             <div class="font-bold text-slate-800 text-sm md:text-base">${c.name}</div>
-                            <div class="text-xs md:text-sm text-slate-500 mt-0.5">${c.phone} | ${c.address || '-'}</div>
+                            <div class="text-xs md:text-sm text-slate-500 mt-0.5 flex items-start gap-1"><i data-lucide="map-pin" class="w-3 h-3 mt-0.5 flex-shrink-0"></i> <span class="truncate max-w-[200px]">${c.address || '-'}</span> ${mapIconPay}</div>
+                            <div class="text-xs md:text-sm text-slate-500 mt-0.5 flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3"></i> ${c.phone}</div>
                         </td>
                         <td class="p-4 align-top">
                             <div class="text-sm font-black text-blue-600 bg-blue-50 px-2 py-1 rounded w-max">${formatRp(tagihan)}</div>
                         </td>
                         <td class="p-4 align-top">${statusBadge}</td>
                         <td class="p-4 align-top">
-                            <button onclick="openModalPayment('${c.id}')" class="text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2"><i data-lucide="credit-card" class="w-4 h-4"></i> Proses</button>
+                            <div class="flex flex-col xl:flex-row gap-2">
+                                <button onclick="openModalPayment('${c.id}')" class="text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"><i data-lucide="credit-card" class="w-4 h-4"></i> Proses</button>
+                                ${waBtnAction}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1738,10 +1874,28 @@
         window.openModalPayment = function(custId) {
             let cust = state.customers.find(c => c.id === custId);
             let pkg = state.packages.find(p => p.id === cust.packageId);
-            let tagihan = pkg ? pkg.price : 0;
-            if (cust.customPrice && Number(cust.customPrice) > 0) tagihan = Number(cust.customPrice);
+            let tagihanBulanIni = pkg ? pkg.price : 0;
+            if (cust.customPrice && Number(cust.customPrice) > 0) tagihanBulanIni = Number(cust.customPrice);
 
-            let pay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth) || { status: 'Lunas', method: 'Cash', date: new Date().toISOString().split('T')[0], reason: '' };
+            // LOGIKA AKUMULASI TUNGGAKAN
+            let unpaidMonths = [];
+            let dTemp = new Date(window.selectedMonth + "-01");
+            for(let i=0; i<6; i++) { // Cek 6 bulan terakhir dari bulan terpilih
+                let mStr = dTemp.toISOString().slice(0, 7);
+                let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
+                if (!checkPay || checkPay.status !== 'Lunas') {
+                    unpaidMonths.push({ month: mStr, label: formatMonthName(mStr) });
+                }
+                dTemp.setMonth(dTemp.getMonth() - 1);
+            }
+
+            let totalTagihan = unpaidMonths.length * tagihanBulanIni;
+            if(unpaidMonths.length === 0) totalTagihan = tagihanBulanIni; // Jika sudah lunas semua, anggap normal
+            
+            let listBulanStr = unpaidMonths.map(u => u.label).join(', ');
+
+            let pay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth) || { status: 'Lunas', method: 'Cash', date: getNowLocal(), reason: '' };
+            if(!pay.date) pay.date = getNowLocal();
 
             const html = `
                 <div class="fixed inset-0 bg-slate-900/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
@@ -1751,11 +1905,16 @@
                             <button onclick="closeModal()" class="text-slate-400 hover:text-slate-800 bg-white p-1.5 rounded-full shadow-sm"><i data-lucide="x" class="w-4 h-4"></i></button>
                         </div>
                         <div class="overflow-y-auto custom-scrollbar">
-                            <form onsubmit="savePayment(event, '${custId}', ${tagihan})" class="p-6 space-y-5">
-                                <div class="bg-slate-100/50 p-4 rounded-xl border border-slate-200 text-center">
+                            <form onsubmit="savePayment(event, '${custId}', ${tagihanBulanIni})" class="p-6 space-y-5">
+                                
+                                <input type="hidden" id="hidden-unpaid" value='${JSON.stringify(unpaidMonths)}'>
+
+                                <div class="bg-slate-100/50 p-4 rounded-xl border border-slate-200 text-center relative overflow-hidden">
+                                    ${unpaidMonths.length > 1 ? `<div class="absolute top-2 right-2 bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded border border-amber-200 animate-pulse">NUNGGAK ${unpaidMonths.length} BLN</div>` : ''}
                                     <p class="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">Total Tagihan</p>
-                                    <p class="text-3xl font-extrabold text-blue-700 bg-white py-2 rounded-lg border border-blue-100 shadow-sm">${formatRp(tagihan)}</p>
+                                    <p class="text-3xl font-extrabold text-blue-700 bg-white py-2 rounded-lg border border-blue-100 shadow-sm">${formatRp(totalTagihan)}</p>
                                     <p class="text-sm font-bold text-slate-700 mt-3">${cust.name}</p>
+                                    ${unpaidMonths.length > 1 ? `<p class="text-[10px] text-amber-600 mt-1 font-bold leading-tight">Mencakup bulan: ${listBulanStr}</p>` : ''}
                                 </div>
                                 
                                 <div>
@@ -1776,8 +1935,8 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-bold text-slate-700 mb-1.5">Tanggal Bayar</label>
-                                        <input type="date" id="pay-date" value="${pay.date}" class="w-full px-4 py-3 border border-emerald-200 rounded-xl outline-none focus:border-emerald-500 bg-white font-bold shadow-sm">
+                                        <label class="block text-sm font-bold text-slate-700 mb-1.5">Waktu Transaksi</label>
+                                        <input type="datetime-local" id="pay-date" value="${pay.date.length === 10 ? pay.date + 'T00:00' : pay.date}" class="w-full px-4 py-3 border border-emerald-200 rounded-xl outline-none focus:border-emerald-500 bg-white font-bold shadow-sm">
                                     </div>
                                 </div>
                                 
@@ -1812,35 +1971,56 @@
             }
         }
 
-        window.savePayment = async function(e, custId, amount) {
+        window.savePayment = async function(e, custId, tagihanPerBulan) {
             e.preventDefault();
             const status = document.getElementById('pay-status').value;
             const method = status === 'Lunas' ? document.getElementById('pay-method').value : '';
+            const payDate = status === 'Lunas' ? document.getElementById('pay-date').value : '';
+            const payReason = status === 'Belum Bayar' ? document.getElementById('pay-reason').value : '';
             
-            // DATANG KE KANTOR OTOMATIS KE ADMIN
             let finalTechId = currentUser.id;
             if (status === 'Lunas' && method === 'Datang ke Kantor') finalTechId = 'admin';
 
-            // FIX: Pertahankan ID jika sudah ada, agar database melakukan Update (bukan tambah baru yang menumpuk)
-            const existingPay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth);
-            const payId = existingPay ? existingPay.id : generateId();
+            let unpaidMonths = JSON.parse(document.getElementById('hidden-unpaid').value || '[]');
+            
+            if (status === 'Lunas' && unpaidMonths.length > 0) {
+                // Loop semua bulan nunggak dan jadikan Lunas (Akumulasi Berantai)
+                unpaidMonths.forEach(mObj => {
+                    const existingPay = state.payments.find(p => p.customerId === custId && p.month === mObj.month);
+                    const payId = existingPay ? existingPay.id : generateId();
+                    const data = {
+                        id: payId,
+                        customerId: custId,
+                        month: mObj.month,
+                        status: 'Lunas',
+                        amount: tagihanPerBulan,
+                        method: method,
+                        date: payDate,
+                        reason: '',
+                        technicianId: finalTechId
+                    };
+                    if (existingPay) Object.assign(existingPay, data);
+                    else state.payments.push(data);
+                });
+            } else {
+                // Jika Belum Bayar atau tidak ada history tunggakan, update bulan ini saja
+                const existingPay = state.payments.find(p => p.customerId === custId && p.month === window.selectedMonth);
+                const payId = existingPay ? existingPay.id : generateId();
+                const data = {
+                    id: payId,
+                    customerId: custId,
+                    month: window.selectedMonth,
+                    status: status,
+                    amount: status === 'Lunas' ? tagihanPerBulan : 0,
+                    method: method,
+                    date: payDate,
+                    reason: payReason,
+                    technicianId: finalTechId
+                };
+                if (existingPay) Object.assign(existingPay, data);
+                else state.payments.push(data);
+            }
 
-            const data = {
-                id: payId, 
-                customerId: custId, 
-                month: window.selectedMonth, 
-                status: status,
-                amount: status === 'Lunas' ? amount : 0, 
-                method: method,
-                date: status === 'Lunas' ? document.getElementById('pay-date').value : '', 
-                reason: status === 'Belum Bayar' ? document.getElementById('pay-reason').value : '',
-                technicianId: finalTechId 
-            };
-            
-            const idx = state.payments.findIndex(p => p.customerId === custId && p.month === window.selectedMonth);
-            if (idx >= 0) state.payments[idx] = data;
-            else state.payments.push(data);
-            
             closeModal();
             renderMenuContent();
             await syncToDatabase("Menyimpan Tagihan...");
@@ -1860,7 +2040,6 @@
             const monthKey = window.selectedMonth;
             let allLunas = state.payments.filter(p => p.month === monthKey && p.status === 'Lunas');
             
-            // FILTER LAPORAN BERDASARKAN TGL TAGIHAN
             if (window.reportFilterDue && window.reportFilterDue !== 'all') {
                 allLunas = allLunas.filter(p => {
                     let cust = state.customers.find(c => c.id === p.customerId);
@@ -1871,13 +2050,11 @@
             let reportData = [];
             if (userRole === 'admin') {
                 reportData = state.technicians.map(t => {
-                    // Hanya hitung jika technicianId cocok DAN metodenya bukan "Datang ke Kantor"
                     const techPayments = allLunas.filter(p => String(p.technicianId) === String(t.id) && p.method !== 'Datang ke Kantor');
                     const rev = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
                     return { techId: t.id, name: t.name, revenue: rev, trxCount: techPayments.length };
                 });
                 
-                // ADMINISTRATOR: Tarik paksa data lama yang belum terupdate ID-nya & Data baru (Datang ke Kantor)
                 const adminPayments = allLunas.filter(p => String(p.technicianId) === 'admin' || !p.technicianId || p.method === 'Datang ke Kantor');
                 if(adminPayments.length > 0) {
                     const adminRev = adminPayments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -1943,7 +2120,6 @@
                             <p class="text-sm text-slate-500">Periode laporan: <span class="font-bold text-blue-600">${formatMonthName(monthKey)}</span></p>
                         </div>
 
-                        <!-- FILTER LAPORAN -->
                         <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto">
                             <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
                             <select onchange="changeReportFilter(this.value)" class="w-full bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer">
@@ -1998,21 +2174,13 @@
                 let cust = state.customers.find(c => c.id === p.customerId) || {};
                 const pkg = state.packages.find(pk => pk.id === cust.packageId);
                 let pkgName = pkg ? pkg.name : '-';
-                
-                let printDate = p.date;
-                if (printDate && String(printDate).includes('T')) {
-                    const dObj = new Date(printDate);
-                    if (!isNaN(dObj.getTime())) {
-                        printDate = dObj.toLocaleDateString('id-ID');
-                    }
-                }
 
                 return `
                     <tr style="border-bottom: 1px solid #ddd; background-color: #fff;">
                         <td style="padding: 12px 8px; text-align: center; border: 1px solid #ddd; color: #000;">${i+1}</td>
                         <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;"><strong>${cust.name || 'Unknown'}</strong><br><span style="font-size:10px;color:#555;">${cust.phone || '-'}</span></td>
                         <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${pkgName}</td>
-                        <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${printDate}</td>
+                        <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${formatTanggalBaca(p.date)}</td>
                         <td style="padding: 12px 8px; border: 1px solid #ddd; color: #000;">${p.method}</td>
                         <td style="padding: 12px 8px; text-align: right; border: 1px solid #ddd; color: #000;"><strong>${formatRp(p.amount)}</strong></td>
                     </tr>
@@ -2021,7 +2189,6 @@
             
             let total = techPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-            // Metode Teks diproses menjadi DOM. Dijamin Blank Putih / Mulus dan Tabel Muncul!
             const htmlContent = `
                 <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #000; width: 100%; box-sizing: border-box; background-color: #ffffff;">
                     <div style="border-bottom: 3px solid #2563eb; padding-bottom: 15px; margin-bottom: 25px; text-align: center;">
@@ -2043,7 +2210,7 @@
                                 <th style="padding: 14px 8px; text-align: center; border: 1px solid #ddd;">No</th>
                                 <th style="padding: 14px 8px; border: 1px solid #ddd;">Nama Pelanggan</th>
                                 <th style="padding: 14px 8px; border: 1px solid #ddd;">Paket Internet</th>
-                                <th style="padding: 14px 8px; border: 1px solid #ddd;">Tgl Bayar</th>
+                                <th style="padding: 14px 8px; border: 1px solid #ddd;">Tgl & Jam Bayar</th>
                                 <th style="padding: 14px 8px; border: 1px solid #ddd;">Metode</th>
                                 <th style="padding: 14px 8px; text-align: right; border: 1px solid #ddd;">Nominal</th>
                             </tr>
@@ -2078,7 +2245,6 @@
                     jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
                 };
 
-                // PENTING: Dikonversi menjadi DOM Element sebelum dikirim
                 const tempElement = document.createElement('div');
                 tempElement.innerHTML = htmlContent;
 
@@ -2119,13 +2285,13 @@
                     
                         <h3 class="font-extrabold text-slate-800 mb-6 flex items-center gap-2 border-b border-slate-100 pb-3"><i data-lucide="shield" class="w-5 h-5 text-slate-500"></i> Keamanan Akun Admin</h3>
                         <form onsubmit="saveSettings(event)" class="space-y-5">
-                            <div>
+                            <div class="hidden">
                                 <label class="block text-sm font-bold text-slate-700 mb-1.5">Username Admin</label>
                                 <input type="text" id="set-user" required value="${state.admin.user}" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-1.5">Password Admin</label>
-                                <input type="text" id="set-pass" required value="${state.admin.pass}" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5">Password Admin (Pusat)</label>
+                                <input type="text" id="set-pass" required value="${state.admin.pass}" placeholder="Masukkan password baru..." class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500 bg-slate-50 focus:bg-white font-bold transition-colors">
                             </div>
                             <div class="pt-4 mt-2 border-t border-slate-100">
                                 <button type="submit" class="w-full mt-4 px-5 py-3.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md flex items-center justify-center gap-2 transition-colors"><i data-lucide="save" class="w-4 h-4"></i> Simpan Semua Pengaturan</button>
