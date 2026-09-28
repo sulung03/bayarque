@@ -366,7 +366,7 @@
                 let dTemp = new Date(monthKey + "-01");
                 for (let i = 0; i < 6; i++) {
                     let mStr = dTemp.toISOString().slice(0, 7);
-                    if (mStr >= '2026-01') {
+                    if (mStr >= '2026-08') {
                         let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
                         if (!checkPay || checkPay.status !== 'Lunas') {
                             unpaidList.push(formatMonthName(mStr));
@@ -961,7 +961,7 @@
             const m0 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m1 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m2 = d.toISOString().slice(0, 7); 
-            const last3Months = [m0, m1, m2].filter(m => m >= '2026-01');
+            const last3Months = [m0, m1, m2].filter(m => m >= '2026-08');
 
             let filteredCust = state.customers;
 
@@ -1984,7 +1984,7 @@
             let dTemp = new Date(window.selectedMonth + "-01");
             for(let i=0; i<6; i++) {
                 let mStr = dTemp.toISOString().slice(0, 7);
-                if (mStr >= '2026-01') {
+                if (mStr >= '2026-08') {
                     let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
                     if (!checkPay || checkPay.status !== 'Lunas') {
                         unpaidMonths.push({ month: mStr, label: formatMonthName(mStr) });
