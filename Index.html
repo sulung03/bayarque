@@ -265,7 +265,23 @@
             overlay.classList.remove('flex');
         }
 
-        function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
+        function generateId(monthPrefix = '') {
+            const prefix = monthPrefix ? String(monthPrefix).replace('-', '') + '_' : '';
+            return 'id_' + prefix + Math.random().toString(36).substr(2, 9);
+        }
+
+        function getCustomerStartMonth(cust) {
+            if (!cust) return '2026-08';
+            if (cust.startMonth && /^\d{4}-\d{2}$/.test(String(cust.startMonth).trim())) {
+                return String(cust.startMonth).trim();
+            }
+            const match = String(cust.id || '').match(/^id_(\d{4})(\d{2})_/);
+            if (match) {
+                return `${match[1]}-${match[2]}`;
+            }
+            return '2026-08';
+        }
+
         function formatRp(angka) { return "Rp " + Number(angka || 0).toLocaleString('id-ID'); }
         
         function formatMonthName(yyyyMm) {
@@ -362,11 +378,12 @@
                        `-----------------------------------------\n` +
                        `Terima kasih telah mempercayakan kebutuhan internet Anda kepada *BayarQue*. Semoga koneksi Anda selalu lancar! 🚀🙏`;
             } else if (type === 'tagihan' || type === 'nunggak') {
+                const startMonth = getCustomerStartMonth(cust);
                 let unpaidList = [];
                 let dTemp = new Date(monthKey + "-01");
                 for (let i = 0; i < 6; i++) {
                     let mStr = dTemp.toISOString().slice(0, 7);
-                    if (mStr >= '2026-08') {
+                    if (mStr >= startMonth) {
                         let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
                         if (!checkPay || checkPay.status !== 'Lunas') {
                             unpaidList.push(formatMonthName(mStr));
@@ -724,7 +741,7 @@
             let myCustomers = state.customers;
             let myPayments = state.payments;
             
-            const activeCust = myCustomers.filter(c => c.status === 'Aktif');
+            const activeCust = myCustomers.filter(c => c.status === 'Aktif' && getCustomerStartMonth(c) <= monthKey);
             const totalActive = activeCust.length;
             
             let lunasCount = 0;
@@ -863,7 +880,7 @@
 
         window.openModalDashboardDetail = function(type, filterDue = 'all') {
             const monthKey = window.selectedMonth;
-            let myCustomers = state.customers.filter(c => c.status === 'Aktif');
+            let myCustomers = state.customers.filter(c => c.status === 'Aktif' && getCustomerStartMonth(c) <= monthKey);
             let myPayments = state.payments;
 
             let title = type === 'lunas' ? 'Data Pelanggan (Sudah Lunas)' : 'Data Pelanggan (Belum Bayar)';
@@ -947,11 +964,25 @@
 
         window.handleSearchCustomer = function(val) {
             window.searchCustomer = val;
+            const clearBtn = document.getElementById('clear-search-customer');
+            if (clearBtn) {
+                if (val) { clearBtn.classList.remove('hidden'); clearBtn.classList.add('flex'); }
+                else { clearBtn.classList.add('hidden'); clearBtn.classList.remove('flex'); }
+            }
             const tbody = document.getElementById('cust-tbody');
             if (tbody) { 
                 tbody.innerHTML = getCustomerRowsHTML(); 
                 if (window.lucide) lucide.createIcons(); 
             }
+        };
+
+        window.clearSearchCustomer = function() {
+            const input = document.getElementById('search-customer');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            window.handleSearchCustomer('');
         };
 
         function getCustomerRowsHTML() {
@@ -986,10 +1017,13 @@
                 });
             } else if (window.filterCustomerPay === 'nunggak') {
                 filteredCust = filteredCust.filter(c => {
+                    const startMonth = getCustomerStartMonth(c);
                     let nunggakCount = 0;
                     last3Months.forEach(m => {
-                        const pay = state.payments.find(p => p.customerId === c.id && p.month === m);
-                        if (!pay || pay.status !== 'Lunas') nunggakCount++;
+                        if (m >= startMonth) {
+                            const pay = state.payments.find(p => p.customerId === c.id && p.month === m);
+                            if (!pay || pay.status !== 'Lunas') nunggakCount++;
+                        }
                     });
                     return nunggakCount >= 1;
                 });
@@ -1082,7 +1116,10 @@
                             <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                 <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
                             </div>
-                            <input type="text" id="search-customer" value="${window.searchCustomer || ''}" oninput="handleSearchCustomer(this.value)" placeholder="Cari nama, hp, atau alamat..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:bg-white font-bold text-sm transition-all">
+                            <input type="text" id="search-customer" value="${window.searchCustomer || ''}" oninput="handleSearchCustomer(this.value)" placeholder="Cari nama, hp, atau alamat..." class="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:bg-white font-bold text-sm transition-all">
+                            <button type="button" id="clear-search-customer" onclick="clearSearchCustomer()" class="${window.searchCustomer ? 'flex' : 'hidden'} absolute inset-y-0 right-0 pr-3 items-center text-slate-400 hover:text-slate-600 transition-colors" title="Hapus pencarian">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
                         </div>
 
                         <div class="flex flex-col md:flex-row gap-3 w-full xl:w-auto items-stretch md:items-center">
@@ -1364,8 +1401,9 @@
 
         window.saveCustomer = async function(e, id) {
             e.preventDefault();
+            const existingCust = id ? state.customers.find(c => c.id === id) : null;
             const data = {
-                id: id || generateId(),
+                id: id || generateId(window.selectedMonth),
                 name: document.getElementById('fc-name').value.trim(),
                 phone: document.getElementById('fc-phone').value.trim(),
                 address: document.getElementById('fc-address').value.trim(),
@@ -1373,7 +1411,8 @@
                 packageId: document.getElementById('fc-pkg').value,
                 dueDate: document.getElementById('fc-due').value,
                 status: document.getElementById('fc-status').value,
-                customPrice: id ? (state.customers.find(c => c.id === id)?.customPrice || '') : ''
+                customPrice: existingCust ? (existingCust.customPrice || '') : '',
+                startMonth: existingCust ? getCustomerStartMonth(existingCust) : window.selectedMonth
             };
 
             if(!data.packageId) { showToast("Gagal", "Paket Internet wajib dipilih!", "error"); return; }
@@ -1476,7 +1515,7 @@
                     if (cols.length < 2 || !cols[idxName]) continue;
 
                     state.customers.push({
-                        id: generateId(), 
+                        id: generateId(window.selectedMonth), 
                         name: cols[idxName], 
                         address: (idxAddr !== -1 && cols[idxAddr]) ? cols[idxAddr] : '-', 
                         phone: (idxPhone !== -1 && cols[idxPhone]) ? cols[idxPhone] : '-',
@@ -1484,7 +1523,8 @@
                         packageId: pkgId, 
                         dueDate: due, 
                         status: status, 
-                        customPrice: ''
+                        customPrice: '',
+                        startMonth: window.selectedMonth
                     });
                     successCount++;
                 }
@@ -1755,11 +1795,25 @@
         window.handleSearchPayment = function(due, val) {
             if (due === 15) window.searchPayment15 = val;
             if (due === 25) window.searchPayment25 = val;
+            const clearBtn = document.getElementById('clear-search-pay-' + due);
+            if (clearBtn) {
+                if (val) { clearBtn.classList.remove('hidden'); clearBtn.classList.add('flex'); }
+                else { clearBtn.classList.add('hidden'); clearBtn.classList.remove('flex'); }
+            }
             const tbody = document.getElementById('pay-tbody-' + due);
             if (tbody) { 
                 tbody.innerHTML = getPaymentRowsHTML(due); 
                 if (window.lucide) lucide.createIcons(); 
             }
+        };
+
+        window.clearSearchPayment = function(due) {
+            const input = document.getElementById('search-pay-' + due);
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            window.handleSearchPayment(due, '');
         };
 
         window.handleFilterPayment = function(due, val) {
@@ -1789,7 +1843,7 @@
         function getPaymentRowsHTML(due) {
             const monthKey = window.selectedMonth;
             
-            let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif');
+            let filteredCust = state.customers.filter(c => String(c.dueDate).trim() === String(due).trim() && String(c.status).trim().toLowerCase() === 'aktif' && getCustomerStartMonth(c) <= monthKey);
             
             let filterValue = due === 15 ? (window.filterPay15 || 'belum') : (window.filterPay25 || 'belum');
             let searchValue = due === 15 ? window.searchPayment15 : window.searchPayment25;
@@ -1933,7 +1987,10 @@
                             <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                 <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
                             </div>
-                            <input type="text" id="search-pay-${due}" value="${searchValue || ''}" oninput="handleSearchPayment(${due}, this.value)" placeholder="Cari nama, hp, atau alamat..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:bg-white font-bold text-sm transition-all">
+                            <input type="text" id="search-pay-${due}" value="${searchValue || ''}" oninput="handleSearchPayment(${due}, this.value)" placeholder="Cari nama, hp, atau alamat..." class="w-full pl-10 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:bg-white font-bold text-sm transition-all">
+                            <button type="button" id="clear-search-pay-${due}" onclick="clearSearchPayment(${due})" class="${searchValue ? 'flex' : 'hidden'} absolute inset-y-0 right-0 pr-3 items-center text-slate-400 hover:text-slate-600 transition-colors" title="Hapus pencarian">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
                         </div>
                         
                         <div class="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto">
@@ -1980,11 +2037,12 @@
             let tagihanBulanIni = pkg ? Number(pkg.price || 0) : 0;
             if (cust.customPrice && Number(cust.customPrice) > 0) tagihanBulanIni = Number(cust.customPrice);
 
+            const startMonth = getCustomerStartMonth(cust);
             let unpaidMonths = [];
             let dTemp = new Date(window.selectedMonth + "-01");
             for(let i=0; i<6; i++) {
                 let mStr = dTemp.toISOString().slice(0, 7);
-                if (mStr >= '2026-08') {
+                if (mStr >= startMonth) {
                     let checkPay = state.payments.find(p => p.customerId === custId && p.month === mStr);
                     if (!checkPay || checkPay.status !== 'Lunas') {
                         unpaidMonths.push({ month: mStr, label: formatMonthName(mStr) });
