@@ -62,7 +62,8 @@
             technicians: [],
             customers: [],
             payments: [],
-            admin: { user: 'admin', pass: 'admin123' }
+            admin: { user: 'admin', pass: 'admin123' },
+            lastUpdated: 0
         };
 
         let currentUser = null; 
@@ -118,14 +119,18 @@
             }, 3500);
         };
 
-        function saveCacheToLocalStorage() {
+        function saveCacheToLocalStorage(isFromCloud = false) {
             try {
+                if (!isFromCloud) {
+                    state.lastUpdated = Date.now();
+                }
                 localStorage.setItem('bayarque_local_cache', JSON.stringify({
                     packages: state.packages,
                     technicians: state.technicians,
                     customers: state.customers,
                     payments: state.payments,
-                    admin: state.admin
+                    admin: state.admin,
+                    lastUpdated: state.lastUpdated
                 }));
             } catch(e) {}
         }
@@ -140,6 +145,7 @@
                 if (parsed.customers) state.customers = parsed.customers;
                 if (parsed.payments) state.payments = parsed.payments;
                 if (parsed.admin) state.admin = parsed.admin;
+                if (parsed.lastUpdated) state.lastUpdated = parsed.lastUpdated;
                 return true;
             } catch(e) {
                 return false;
@@ -148,7 +154,7 @@
 
         async function syncToDatabase(loadingMessage = "Menyimpan ke Google Sheets...") {
             const url = DATABASE_URL || localStorage.getItem('bayarque_script_url');
-            saveCacheToLocalStorage();
+            saveCacheToLocalStorage(false);
             if (!url) return;
             
             showLoading(loadingMessage);
@@ -159,13 +165,19 @@
                     redirect: 'follow',
                     body: JSON.stringify(state)
                 });
+                
+                const text = await response.text();
+                if(text.includes('<html') || text.includes('ServiceLogin')) {
+                    throw new Error("Izin Akses Ditolak oleh Google.");
+                }
+
                 try {
-                    const result = await response.json();
+                    const result = JSON.parse(text);
                     if(result.status !== 'success' && result.error) console.warn("Peringatan server:", result.error);
                 } catch(e) {}
             } catch (error) {
                 console.error("Gagal sinkron:", error);
-                showToast("Koneksi Offline", "Data tersimpan di perangkat lokal. Akan disinkronkan saat online.", "warning");
+                showToast("Koneksi Cloud Tertunda", "Data tersimpan aman di perangkat lokal. Akan disinkronkan ke cloud saat online.", "warning");
             }
             hideLoading();
         }
@@ -179,7 +191,23 @@
                 const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'nocache=' + cacheBuster;
                 
                 const response = await fetch(fetchUrl);
-                const data = await response.json();
+                const text = await response.text();
+
+                if (text.includes('<html') || text.includes('ServiceLogin')) {
+                    throw new Error("Izin Akses Google Ditolak. Pastikan Web App diset 'Anyone'.");
+                }
+                
+                const data = JSON.parse(text);
+                
+                const cloudUpdated = data.lastUpdated || 0;
+                const localUpdated = state.lastUpdated || 0;
+
+                // PROTEKSI DATA: Mencegah timpaan data usang jika cloud gagal menyimpan sebelumnya
+                if (!isManual && localUpdated > cloudUpdated) {
+                    console.warn("Data lokal lebih baru. Menghindari timpa dari cloud.");
+                    syncToDatabase("Mendorong data lokal ke cloud...");
+                    return; 
+                }
                 
                 if (data.packages) state.packages = data.packages;
                 if (data.technicians) state.technicians = data.technicians;
@@ -213,8 +241,11 @@
                 if (data.admin && data.admin.pass) {
                     state.admin = data.admin;
                 }
+                if (data.lastUpdated) {
+                    state.lastUpdated = data.lastUpdated;
+                }
                 
-                saveCacheToLocalStorage();
+                saveCacheToLocalStorage(true);
                 renderApp();
 
                 if (isManual) {
@@ -223,7 +254,7 @@
             } catch (error) {
                 console.error("Gagal mengambil data cloud:", error);
                 if (isManual) {
-                    showToast("Sinkron Gagal", "Gagal menghubungi Google Sheets. Periksa URL atau koneksi internet.", "error");
+                    showToast("Sinkron Gagal", error.message || "Gagal menghubungi Google Sheets. Periksa koneksi.", "error");
                 }
             } finally {
                 if (syncIcon) syncIcon.classList.remove('animate-spin');
@@ -265,21 +296,14 @@
             overlay.classList.remove('flex');
         }
 
-        function generateId(monthPrefix = '') {
-            const prefix = monthPrefix ? String(monthPrefix).replace('-', '') + '_' : '';
-            return 'id_' + prefix + Math.random().toString(36).substr(2, 9);
-        }
-
+        function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
+        
         function getCustomerStartMonth(cust) {
-            if (!cust) return '2026-08';
+            if (!cust) return '2025-01';
             if (cust.startMonth && /^\d{4}-\d{2}$/.test(String(cust.startMonth).trim())) {
                 return String(cust.startMonth).trim();
             }
-            const match = String(cust.id || '').match(/^id_(\d{4})(\d{2})_/);
-            if (match) {
-                return `${match[1]}-${match[2]}`;
-            }
-            return '2026-08';
+            return '2025-01';
         }
 
         function formatRp(angka) { return "Rp " + Number(angka || 0).toLocaleString('id-ID'); }
@@ -992,7 +1016,7 @@
             const m0 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m1 = d.toISOString().slice(0, 7); 
             d.setMonth(d.getMonth() - 1); const m2 = d.toISOString().slice(0, 7); 
-            const last3Months = [m0, m1, m2].filter(m => m >= '2026-08');
+            const last3Months = [m0, m1, m2];
 
             let filteredCust = state.customers;
 
@@ -1403,7 +1427,7 @@
             e.preventDefault();
             const existingCust = id ? state.customers.find(c => c.id === id) : null;
             const data = {
-                id: id || generateId(window.selectedMonth),
+                id: id || generateId(),
                 name: document.getElementById('fc-name').value.trim(),
                 phone: document.getElementById('fc-phone').value.trim(),
                 address: document.getElementById('fc-address').value.trim(),
@@ -1412,7 +1436,7 @@
                 dueDate: document.getElementById('fc-due').value,
                 status: document.getElementById('fc-status').value,
                 customPrice: existingCust ? (existingCust.customPrice || '') : '',
-                startMonth: existingCust ? getCustomerStartMonth(existingCust) : window.selectedMonth
+                startMonth: existingCust && existingCust.startMonth ? existingCust.startMonth : window.selectedMonth
             };
 
             if(!data.packageId) { showToast("Gagal", "Paket Internet wajib dipilih!", "error"); return; }
@@ -1515,7 +1539,7 @@
                     if (cols.length < 2 || !cols[idxName]) continue;
 
                     state.customers.push({
-                        id: generateId(window.selectedMonth), 
+                        id: generateId(), 
                         name: cols[idxName], 
                         address: (idxAddr !== -1 && cols[idxAddr]) ? cols[idxAddr] : '-', 
                         phone: (idxPhone !== -1 && cols[idxPhone]) ? cols[idxPhone] : '-',
@@ -1795,11 +1819,13 @@
         window.handleSearchPayment = function(due, val) {
             if (due === 15) window.searchPayment15 = val;
             if (due === 25) window.searchPayment25 = val;
+            
             const clearBtn = document.getElementById('clear-search-pay-' + due);
             if (clearBtn) {
                 if (val) { clearBtn.classList.remove('hidden'); clearBtn.classList.add('flex'); }
                 else { clearBtn.classList.add('hidden'); clearBtn.classList.remove('flex'); }
             }
+
             const tbody = document.getElementById('pay-tbody-' + due);
             if (tbody) { 
                 tbody.innerHTML = getPaymentRowsHTML(due); 
