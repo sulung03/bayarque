@@ -299,11 +299,16 @@
         function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
         
         function getCustomerStartMonth(cust) {
-            if (!cust) return '2025-01';
+            const batasAwalSistem = '2026-09'; // Sistem dikunci tidak akan menagih sebelum September 2026
+            
+            if (!cust) return batasAwalSistem;
+            
             if (cust.startMonth && /^\d{4}-\d{2}$/.test(String(cust.startMonth).trim())) {
-                return String(cust.startMonth).trim();
+                const cMonth = String(cust.startMonth).trim();
+                // Jika bulan daftar tercatat sebelum September 2026, paksa mulai dari September 2026
+                return cMonth < batasAwalSistem ? batasAwalSistem : cMonth;
             }
-            return '2025-01';
+            return batasAwalSistem;
         }
 
         function formatRp(angka) { return "Rp " + Number(angka || 0).toLocaleString('id-ID'); }
