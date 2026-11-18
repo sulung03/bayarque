@@ -192,8 +192,18 @@
                 
                 const data = JSON.parse(text);
                 
-                const cloudUpdated = data.lastUpdated || 0;
-                const localUpdated = state.lastUpdated || 0;
+                let cloudUpdated = data.lastUpdated || 0;
+                let localUpdated = state.lastUpdated || 0;
+                
+                // Pastikan format menjadi angka timestamp untuk perbandingan presisi
+                if (typeof cloudUpdated !== 'number') {
+                    const d = new Date(cloudUpdated).getTime();
+                    if (!isNaN(d)) cloudUpdated = d; else cloudUpdated = 0;
+                }
+                if (typeof localUpdated !== 'number') {
+                    const d = new Date(localUpdated).getTime();
+                    if (!isNaN(d)) localUpdated = d; else localUpdated = 0;
+                }
 
                 // PROTEKSI DATA: Mencegah timpaan data usang jika cloud gagal menyimpan sebelumnya
                 if (!isManual && localUpdated > cloudUpdated) {
@@ -206,20 +216,42 @@
                 if (data.technicians) state.technicians = data.technicians;
                 
                 if (data.customers) {
-                    state.customers = data.customers.map(c => ({
-                        ...c,
-                        id: String(c.id).trim(),
-                        packageId: String(c.packageId).trim()
-                    }));
+                    state.customers = data.customers.map(c => {
+                        let parsedStartMonth = c.startMonth ? String(c.startMonth).trim() : window.selectedMonth;
+                        // Penanganan format tanggal dari Google Sheets yang tidak terduga
+                        if (!/^\d{4}-\d{2}$/.test(parsedStartMonth)) {
+                            let d = new Date(parsedStartMonth);
+                            if (!isNaN(d.getTime())) {
+                                parsedStartMonth = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
+                            }
+                        }
+                        return {
+                            ...c,
+                            id: String(c.id).trim(),
+                            packageId: String(c.packageId).trim(),
+                            startMonth: parsedStartMonth
+                        };
+                    });
                 }
                 
                 if (data.payments) {
                     state.payments = data.payments.map(p => {
                         let parsedMonth = String(p.month).trim();
-                        if (parsedMonth.includes('T')) {
+                        // SOLUSI BUG: Memperbaiki format bulan yang diubah sepihak oleh auto-format Google Sheets
+                        if (!/^\d{4}-\d{2}$/.test(parsedMonth)) {
                             const d = new Date(parsedMonth);
                             if (!isNaN(d.getTime())) {
                                 parsedMonth = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
+                            } else {
+                                // Ekstraksi manual jika parse Date gagal namun format mirip string
+                                let parts = parsedMonth.split(/[\/\- ]/);
+                                if (parts.length >= 2) {
+                                    let y = parts[parts.length - 1];
+                                    let m = parts[parts.length - 2];
+                                    if (y.length === 4) {
+                                        parsedMonth = y + "-" + m.padStart(2, '0');
+                                    }
+                                }
                             }
                         }
                         return {
@@ -234,10 +266,8 @@
                 if (data.admin && data.admin.pass) {
                     state.admin = data.admin;
                 }
-                if (data.lastUpdated) {
-                    state.lastUpdated = data.lastUpdated;
-                }
                 
+                state.lastUpdated = cloudUpdated;
                 saveCacheToLocalStorage(true);
                 renderApp();
 
@@ -794,12 +824,15 @@
                     </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                        <div class="bg-blue-600 p-5 rounded-3xl shadow-sm flex flex-col justify-center text-white">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="p-2.5 rounded-2xl bg-blue-500 text-white"><i data-lucide="users" class="w-5 h-5"></i></div>
-                                <p class="text-xs font-bold text-blue-100 uppercase tracking-wide">Pelanggan Aktif</p>
+                        <div onclick="setMenu('pelanggan')" class="bg-blue-600 cursor-pointer hover:bg-blue-700 p-5 rounded-3xl shadow-sm flex flex-col justify-center relative overflow-hidden transition-colors group text-white">
+                            <div class="flex items-center justify-between mb-2 relative z-10">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2.5 rounded-2xl bg-blue-500 shadow-sm text-white"><i data-lucide="users" class="w-5 h-5"></i></div>
+                                    <p class="text-xs font-bold text-blue-100 uppercase tracking-wide">Pelanggan Aktif</p>
+                                </div>
+                                <span class="text-[10px] font-black bg-white text-blue-700 px-2 py-1 rounded-lg shadow-sm">Lihat ➔</span>
                             </div>
-                            <p class="text-3xl font-black pl-1">${totalActive} <span class="text-xs font-bold text-blue-200">Orang</span></p>
+                            <p class="text-3xl font-black pl-1 relative z-10">${totalActive} <span class="text-xs font-bold text-blue-200">Orang</span></p>
                         </div>
                         
                         <div onclick="openModalDashboardDetail('lunas')" class="bg-emerald-600 cursor-pointer hover:bg-emerald-700 p-5 rounded-3xl shadow-sm flex flex-col justify-center relative overflow-hidden transition-colors group text-white">
@@ -826,11 +859,14 @@
                             <p class="text-3xl font-black pl-1 relative z-10">${belumCount} <span class="text-xs font-bold text-red-100">Nunggak</span></p>
                         </div>
                         
-                        <div class="bg-purple-600 p-5 rounded-3xl shadow-sm flex flex-col justify-center text-white relative overflow-hidden">
-                            <div class="absolute -right-4 -bottom-4 opacity-10"><i data-lucide="banknote" class="w-24 h-24 text-white"></i></div>
-                            <div class="flex items-center gap-3 mb-2 relative z-10">
-                                <div class="p-2.5 rounded-2xl bg-purple-500 text-white"><i data-lucide="wallet" class="w-5 h-5"></i></div>
-                                <p class="text-xs font-bold text-purple-100 uppercase tracking-wide">Uang Masuk</p>
+                        <div onclick="setMenu('laporan')" class="bg-purple-600 cursor-pointer hover:bg-purple-700 p-5 rounded-3xl shadow-sm flex flex-col justify-center relative overflow-hidden transition-colors group text-white">
+                            <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="banknote" class="w-24 h-24 text-white"></i></div>
+                            <div class="flex items-center justify-between mb-2 relative z-10">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2.5 rounded-2xl bg-purple-500 shadow-sm text-white"><i data-lucide="wallet" class="w-5 h-5"></i></div>
+                                    <p class="text-xs font-bold text-purple-100 uppercase tracking-wide">Uang Masuk</p>
+                                </div>
+                                <span class="text-[10px] font-black bg-white text-purple-700 px-2 py-1 rounded-lg shadow-sm">Lihat ➔</span>
                             </div>
                             <p class="text-2xl font-black pl-1 truncate relative z-10">${formatRp(revBulanIni)}</p>
                             <p class="text-[10px] text-purple-100 font-bold pl-1 mt-1 bg-purple-500/50 w-max px-2 py-0.5 rounded-md relative z-10">Target: ${formatRp(potensiBulanIni)}</p>
@@ -930,10 +966,12 @@
                 let tagihan = pkg ? Number(pkg.price || 0) : 0;
                 if (c.customPrice && Number(c.customPrice) > 0) tagihan = Number(c.customPrice);
 
+                let clickAction = type === 'nunggak' ? `onclick="openModalPayment('${c.id}')" class="font-bold text-sm text-slate-800 cursor-pointer hover:text-blue-600 transition-colors decoration-dashed underline underline-offset-2" title="Proses Pembayaran"` : `class="font-bold text-sm text-slate-800"`;
+
                 return `
                     <div class="flex justify-between items-center py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 p-2 rounded-xl transition-colors">
                         <div>
-                            <p class="font-bold text-sm text-slate-800">${i+1}. ${c.name}</p>
+                            <p ${clickAction}>${i+1}. ${c.name}</p>
                             <p class="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><i data-lucide="phone" class="w-3 h-3"></i> ${c.phone}</p>
                         </div>
                         <div class="text-right">
